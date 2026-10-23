@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/*
+ * PACA design tokens.
+ * Brand blue sampled from the PACA wordmark (the final "A" is the African continent).
+ */
+@theme {
+  --color-paca-50: #e6f1ff;
+  --color-paca-100: #cce3ff;
+  --color-paca-200: #99c7ff;
+  --color-paca-300: #66aaff;
+  --color-paca-400: #338eff;
+  --color-paca-500: #0078ff;
+  --color-paca-600: #0060cc;
+  --color-paca-700: #004899;
+  --color-paca-800: #003066;
+  --color-paca-900: #001833;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:root {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --border: #e3e6ea;
+  --text: #14181d;
+  --text-muted: #5c6672;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1116;
+    --surface: #161b22;
+    --border: #2a313a;
+    --text: #e6e9ed;
+    --text-muted: #98a2ae;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+/* Verdict accents — used consistently across the queue and detail views. */
+.verdict-REJECT {
+  --verdict: #c0392b;
+  --verdict-bg: color-mix(in srgb, #c0392b 12%, transparent);
+}
+.verdict-FLAG {
+  --verdict: #b7791f;
+  --verdict-bg: color-mix(in srgb, #b7791f 14%, transparent);
+}
+.verdict-APPROVE {
+  --verdict: #146b2e;
+  --verdict-bg: color-mix(in srgb, #146b2e 12%, transparent);
+}
+.verdict-UNREVIEWED {
+  --verdict: #5c6672;
+  --verdict-bg: color-mix(in srgb, #5c6672 12%, transparent);
+}
+
+/*
+ * Dark mode needs lighter verdict hues. The light-mode values are chosen for
+ * contrast against white and fall well below 4.5:1 on a dark ground — the green
+ * in particular becomes almost unreadable.
+ */
+@media (prefers-color-scheme: dark) {
+  .verdict-REJECT {
+    --verdict: #ff6b5c;
+    --verdict-bg: color-mix(in srgb, #ff6b5c 16%, transparent);
+  }
+  .verdict-FLAG {
+    --verdict: #e8a33d;
+    --verdict-bg: color-mix(in srgb, #e8a33d 16%, transparent);
+  }
+  .verdict-APPROVE {
+    --verdict: #4ade80;
+    --verdict-bg: color-mix(in srgb, #4ade80 14%, transparent);
+  }
+  .verdict-UNREVIEWED {
+    --verdict: #98a2ae;
+    --verdict-bg: color-mix(in srgb, #98a2ae 14%, transparent);
+  }
+}
+
+kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 0.25rem;
+  background: var(--surface);
+  color: var(--text-muted);
+}

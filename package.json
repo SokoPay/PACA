@@ -1,0 +1,29 @@
+{
+  "name": "paca",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@10.9.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:generate": "npm run generate --workspace=@paca/db",
+    "db:migrate": "npm run migrate --workspace=@paca/db",
+    "db:seed": "npm run seed --workspace=@paca/db",
+    "db:studio": "npm run studio --workspace=@paca/db"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.5",
+    "typescript": "^5.7.3",
+    "prettier": "^3.4.2"
+  }
+}

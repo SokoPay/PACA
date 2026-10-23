@@ -1,0 +1,1383 @@
+// PACA — Professional Agile Certification, Africa
+// Domain model. Two separable lifecycles:
+//   Membership  = a subscription  (apply -> review -> approve -> pay -> renew annually -> lapse)
+//   Certificate = an event        (pass an exam once -> a credential that exists forever)
+// A lapsed membership SUSPENDS a certificate; it never deletes it.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// AUTH & IDENTITY
+// ============================================================
+
+enum UserRole {
+  MEMBER
+  REVIEWER // works the question-approval + application-review queues
+  ADMIN
+  SUPERADMIN
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+model User {
+  id              String     @id @default(cuid())
+  email           String     @unique
+  emailVerifiedAt DateTime?
+  passwordHash    String // argon2id
+  firstName       String
+  lastName        String
+  phone           String?
+  avatarKey       String? // private object-store key, served via presigned URL
+  role            UserRole   @default(MEMBER)
+  status          UserStatus @default(PENDING_VERIFICATION)
+
+  // Mandatory for ADMIN/SUPERADMIN, optional for members
+  totpSecret    String?
+  totpEnabledAt DateTime?
+
+  lastLoginAt      DateTime?
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+
+  /// Deliberately separate from accepting the Terms. Bundling marketing consent
+  /// into a Terms checkbox is not freely-given consent under GDPR, and is the
+  /// single most common way organisations fail an audit.
+  marketingOptInAt  DateTime?
+  marketingOptOutAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  profile         Profile?
+  membership      Membership?
+  applications    MembershipApplication[]
+  payments        Payment[]
+  attempts        Attempt[]
+  entitlements    ExamEntitlement[]       @relation("EntitlementHolder")
+  grantedExams    ExamEntitlement[]       @relation("EntitlementGranter")
+  exposures       QuestionExposure[]
+  certificates    Certificate[]
+  enrollments     Enrollment[]
+  notifications   Notification[]
+  refreshTokens   RefreshToken[]
+  redemptions     DiscountRedemption[]
+  savedJobs       SavedJob[]
+  jobApplications JobApplication[]
+  reviewedJobApps JobApplication[]        @relation("JobApplicationReviewer")
+  consents        UserConsent[]
+  dataRequests    DataSubjectRequest[]
+  auditLogs       AuditLog[]              @relation("AuditActor")
+  reviewedApps    MembershipApplication[] @relation("AppReviewer")
+  authoredQs      Question[]              @relation("QuestionAuthor")
+  reviewedQs      Question[]              @relation("QuestionReviewer")
+  questionReviews QuestionReview[]
+  sentCampaigns   NotificationCampaign[]
+  sentInvites     Invitation[]            @relation("Inviter")
+  acceptedInvite  Invitation?             @relation("Invitee")
+
+  @@index([status, role])
+  @@map("users")
+}
+
+// Refresh-token rotation with family-based reuse detection.
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique // sha256; the raw token is never stored
+  family    String // rotation keeps the family; reuse of a revoked token kills the whole family
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, family])
+  @@map("refresh_tokens")
+}
+
+enum TokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+model OneTimeToken {
+  id        String       @id @default(cuid())
+  userId    String
+  purpose   TokenPurpose
+  tokenHash String       @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  @@index([userId, purpose])
+  @@map("one_time_tokens")
+}
+
+// Every privileged action lands here. Append-only.
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String // e.g. "application.approved", "question.published"
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorUserId, createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================================
+// PROFILE
+// ============================================================
+
+enum Gender {
+  MALE
+  FEMALE
+  UNSPECIFIED
+}
+
+model Profile {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  gender        Gender  @default(UNSPECIFIED)
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  stateProvince String?
+  postalCode    String?
+  country       String? // ISO 3166-1 alpha-2
+
+  // Professional / Executive / Fellow / Retired
+  highestQualification String?
+  yearOfGraduation     Int?
+  occupation           String?
+  employer             String?
+
+  // Student
+  institution      String?
+  institutionLevel String? // 100 | 200 | 300 | 400
+  programOfStudy   String?
+
+  linkedinUrl String?
+  bio         String?
+
+  // Opt-in to the public "Professional database" directory
+  isPublicInDirectory Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([country, isPublicInDirectory])
+  @@map("profiles")
+}
+
+// ============================================================
+// MEMBERSHIP
+// ============================================================
+
+enum MembershipTier {
+  STUDENT
+  PROFESSIONAL
+  EXECUTIVE
+  FELLOW
+  RETIRED
+}
+
+// Prices and exam rules live in the DB so admins change them without a deploy.
+model TierConfig {
+  tier          MembershipTier @id
+  displayName   String
+  priceUsdCents Int
+  designation   String? // e.g. "MPACA", "FPACA"
+  sortOrder     Int            @default(0)
+
+  // Exam rules per tier
+  examQuestionCount Int        @default(60)
+  examDurationMins  Int        @default(60)
+  passMarkBps       Int        @default(8500) // 85.00% in basis points — avoids float rounding
+  difficulty        Difficulty @default(INTERMEDIATE)
+
+  // Attempts granted by the subscription payment. Exhausting them does NOT lock the
+  // member out — they buy a resit block (see ExamEntitlement).
+  attemptsPerEntitlement Int @default(3)
+
+  // Cost of another block of attempts after the first 3 are used up.
+  resitPriceUsdCents   Int @default(0)
+  resitAttemptsGranted Int @default(3)
+
+  // Fellow is panel-assessed, not exam-assessed.
+  requiresExam  Boolean @default(true)
+  requiresPanel Boolean @default(false)
+
+  isActive  Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+
+  @@map("tier_configs")
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  DECLINED
+  WITHDRAWN
+}
+
+model MembershipApplication {
+  id     String         @id @default(cuid())
+  userId String
+  tier   MembershipTier
+
+  status ApplicationStatus @default(DRAFT)
+
+  // Tier-specific answers, validated server-side by the Zod schema for that tier.
+  answers Json @default("{}")
+
+  submittedAt      DateTime?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  decisionReason   String? // shown to the applicant when DECLINED
+  reviewerNotes    String? // internal only, never serialised to members
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewer  User?                 @relation("AppReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  documents ApplicationDocument[]
+
+  @@index([status, tier])
+  @@index([userId])
+  @@map("membership_applications")
+}
+
+enum DocumentKind {
+  STUDENT_ID
+  RECOMMENDATION_LETTER
+  PROFESSIONAL_CERTIFICATE
+  CV
+  PROOF_OF_RETIREMENT
+  PUBLICATION
+  OTHER
+}
+
+enum ScanStatus {
+  PENDING
+  CLEAN
+  INFECTED
+  ERROR
+}
+
+// Uploads are PII (Ghana DPA 2012 + GDPR). Private bucket, presigned reads only,
+// never served from the app origin.
+model ApplicationDocument {
+  id            String       @id @default(cuid())
+  applicationId String
+  kind          DocumentKind
+  storageKey    String       @unique
+  originalName  String
+  mimeType      String
+  sizeBytes     Int
+  checksum      String? // sha256, for dedupe + tamper detection
+  scanStatus    ScanStatus   @default(PENDING)
+  uploadedAt    DateTime     @default(now())
+
+  application MembershipApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("application_documents")
+}
+
+enum MembershipStatus {
+  PENDING_PAYMENT // approved but unpaid — drives the "unlock your benefits" banner
+  ACTIVE
+  LAPSED // subscription expired; certificates suspend
+  SUSPENDED // disciplinary
+  CANCELLED
+}
+
+model Membership {
+  id           String           @id @default(cuid())
+  userId       String           @unique
+  memberNumber String           @unique // e.g. PACA-2026-00042
+  tier         MembershipTier
+  status       MembershipStatus @default(PENDING_PAYMENT)
+
+  approvedAt         DateTime?
+  activatedAt        DateTime? // first successful payment
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime? // PACA subscription year ends 31 December
+  lapsedAt           DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  periods MembershipPeriod[]
+
+  @@index([status, tier])
+  @@index([currentPeriodEnd])
+  @@map("memberships")
+}
+
+// One row per subscription year — the audit trail for
+// "was this member in good standing in 2026?"
+model MembershipPeriod {
+  id             String         @id @default(cuid())
+  membershipId   String
+  tier           MembershipTier
+  periodStart    DateTime
+  periodEnd      DateTime
+  amountUsdCents Int
+  paymentId      String?        @unique
+  createdAt      DateTime       @default(now())
+
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  payment    Payment?   @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([membershipId, periodStart])
+  @@map("membership_periods")
+}
+
+// ============================================================
+// PAYMENTS (Paystack; provider kept behind an interface)
+// ============================================================
+
+enum PaymentProvider {
+  PAYSTACK
+  STRIPE
+  MANUAL // admin-recorded bank transfer
+}
+
+enum PaymentPurpose {
+  MEMBERSHIP_SUBSCRIPTION
+  MEMBERSHIP_RENEWAL
+  EXAM_RESIT
+  COURSE_PURCHASE
+}
+
+enum PaymentStatus {
+  INITIALIZED
+  PENDING
+  SUCCESS
+  FAILED
+  ABANDONED
+  REFUNDED
+}
+
+model Payment {
+  id          String          @id @default(cuid())
+  userId      String
+  provider    PaymentProvider @default(PAYSTACK)
+  providerRef String          @unique // Paystack reference
+  purpose     PaymentPurpose
+  status      PaymentStatus   @default(INITIALIZED)
+
+  // Charge currency may be GHS/NGN/USD; we always store a USD equivalent for reporting.
+  amount         Int // minor units of `currency`
+  currency       String   @default("USD")
+  amountUsdCents Int
+  fxRate         Decimal? @db.Decimal(18, 8)
+
+  channel        String? // card | mobile_money | bank_transfer
+  discountCodeId String?
+  metadata       Json?
+  paidAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  discountCode DiscountCode?     @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
+  period       MembershipPeriod?
+  enrollment   Enrollment?
+  entitlement  ExamEntitlement?
+
+  @@index([userId, status])
+  @@index([purpose, status])
+  @@map("payments")
+}
+
+// Webhooks are the ONLY thing that activates a membership. Never the browser redirect.
+model WebhookEvent {
+  id              String          @id @default(cuid())
+  provider        PaymentProvider
+  providerEventId String // idempotency key
+  eventType       String
+  signatureValid  Boolean
+  payload         Json
+  processedAt     DateTime?
+  error           String?
+  receivedAt      DateTime        @default(now())
+
+  @@unique([provider, providerEventId])
+  @@index([processedAt])
+  @@map("webhook_events")
+}
+
+// ============================================================
+// QUESTION BANK
+// ============================================================
+
+enum Difficulty {
+  FOUNDATION // Student
+  INTERMEDIATE // Professional
+  ADVANCED // Executive
+  EXPERT // Fellow
+}
+
+enum QuestionStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  REJECTED
+  RETIRED
+}
+
+enum QuestionOrigin {
+  HUMAN
+  AI_GENERATED
+  IMPORTED
+}
+
+enum QuestionKind {
+  SINGLE_CHOICE
+  MULTI_CHOICE
+  TRUE_FALSE
+}
+
+enum AutoReviewVerdict {
+  APPROVE
+  FLAG
+  REJECT
+}
+
+model Topic {
+  id        String   @id @default(cuid())
+  slug      String   @unique // agile-fundamentals, scrum, kanban, flow-metrics, lean, xp, devops, scaling...
+  name      String
+  parentId  String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  parent    Topic?     @relation("TopicTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Topic[]    @relation("TopicTree")
+  questions Question[]
+  resources Resource[]
+
+  @@map("topics")
+}
+
+model Question {
+  id      String       @id @default(cuid())
+  topicId String
+  kind    QuestionKind @default(SINGLE_CHOICE)
+
+  difficulty  Difficulty
+  stem        String
+  // Shown only AFTER an attempt is scored, and never for a live certification exam.
+  explanation String?
+  sourceRef   String? // e.g. "Scrum Guide 2020, Sprint Review"
+
+  status QuestionStatus @default(DRAFT)
+  origin QuestionOrigin @default(HUMAN)
+
+  // AI provenance — nothing AI-drafted reaches the certification pool unreviewed.
+  aiModel  String?
+  aiPrompt String?
+
+  // ---- Automated pre-review -------------------------------------------
+  // Advisory only. A verdict of APPROVE still requires Kojo to confirm before
+  // the question can move to PUBLISHED; no code path may promote on this alone.
+  autoReviewVerdict     AutoReviewVerdict?
+  autoReviewConfidence  Decimal?           @db.Decimal(4, 3)
+  autoReviewNotes       String?
+  autoReviewIssues      String[]           @default([])
+  autoReviewProvider    String?
+  autoReviewedAt        DateTime?
+  /// Did the reviewing model, answering cold, pick the keyed option?
+  independentAnswerAgreed Boolean?
+  /// Queue ordering — lower sorts first. Problem items reach the reviewer soonest.
+  reviewPriority        Int?
+
+  createdByUserId  String?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+
+  version Int @default(1)
+
+  // Item analysis: lets admins retire questions that everyone gets right/wrong.
+  timesServed  Int @default(0)
+  timesCorrect Int @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  retiredAt DateTime?
+
+  topic     Topic              @relation(fields: [topicId], references: [id], onDelete: Restrict)
+  author    User?              @relation("QuestionAuthor", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewer  User?              @relation("QuestionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  options   QuestionOption[]
+  reviews   QuestionReview[]
+  attemptQs AttemptQuestion[]
+  exposures QuestionExposure[]
+
+  // The hot path: "give me published questions of difficulty X in topic Y"
+  @@index([status, difficulty, topicId])
+  // The review queue: "what should Kojo look at next?"
+  @@index([status, reviewPriority])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         String  @id @default(cuid())
+  questionId String
+  text       String
+  // NEVER serialised to a client during a live attempt.
+  isCorrect  Boolean @default(false)
+  sortOrder  Int     @default(0)
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("question_options")
+}
+
+enum ReviewDecision {
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+model QuestionReview {
+  id         String         @id @default(cuid())
+  questionId String
+  reviewerId String
+  decision   ReviewDecision
+  notes      String?
+  createdAt  DateTime       @default(now())
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  reviewer User     @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("question_reviews")
+}
+
+// ============================================================
+// ASSESSMENTS & ATTEMPTS
+// ============================================================
+
+enum AssessmentType {
+  FREE_OPEN // open to everyone, no certificate
+  CERTIFICATION // paid members only, issues a certificate on pass
+}
+
+enum EntitlementSource {
+  SUBSCRIPTION // the annual membership payment — grants the first block
+  RESIT_PURCHASE // bought another block after exhausting the previous one
+  ADMIN_GRANT // an admin extended this member's limit, with a reason on the record
+}
+
+// A member's right to sit the certification exam, in blocks of attempts.
+// Remaining attempts = SUM(attemptsGranted - attemptsUsed) over non-expired rows.
+// Modelled as ledger rows rather than a counter on User so that every extra attempt
+// has provenance: who granted it, why, and whether it was paid for.
+model ExamEntitlement {
+  id     String            @id @default(cuid())
+  userId String
+  tier   MembershipTier
+  source EntitlementSource
+
+  attemptsGranted Int @default(3)
+  attemptsUsed    Int @default(0)
+
+  paymentId String? @unique // set for SUBSCRIPTION and RESIT_PURCHASE
+
+  // Set for ADMIN_GRANT — both required by the service layer, and mirrored to AuditLog.
+  grantedByUserId String?
+  grantReason     String?
+
+  // Optional expiry, e.g. "attempts must be used within the subscription year".
+  expiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User      @relation("EntitlementHolder", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User?     @relation("EntitlementGranter", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+  payment   Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  attempts  Attempt[]
+
+  @@index([userId, tier])
+  @@map("exam_entitlements")
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  EXPIRED // ran out of time; auto-scored on what was answered
+  ABANDONED
+  VOIDED // invalidated by an admin
+}
+
+model Attempt {
+  id     String          @id @default(cuid())
+  userId String
+  type   AssessmentType
+  tier   MembershipTier? // null for FREE_OPEN
+
+  // Which block of attempts this sitting was drawn from. Null for FREE_OPEN,
+  // which is unlimited (bounded only by the daily no-repeat rule).
+  entitlementId String?
+
+  attemptNumber Int           @default(1)
+  status        AttemptStatus @default(IN_PROGRESS)
+
+  // Rules snapshotted at start, so changing TierConfig can't retroactively alter a sitting.
+  questionCount Int
+  passMarkBps   Int
+  durationMins  Int
+  difficulty    Difficulty
+
+  // Deterministic shuffle seed — makes a completed attempt fully reproducible for audit.
+  seed String
+
+  startedAt   DateTime  @default(now())
+  expiresAt   DateTime // server-authoritative; the browser timer is decoration
+  submittedAt DateTime?
+
+  scoreBps          Int? // 0..10000
+  correctCount      Int?
+  passed            Boolean?
+  certificateIssued Boolean  @default(false)
+
+  ipAddress String?
+  userAgent String?
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entitlement ExamEntitlement?  @relation(fields: [entitlementId], references: [id], onDelete: SetNull)
+  questions   AttemptQuestion[]
+  certificate Certificate?
+
+  @@index([userId, type, status])
+  @@index([status, expiresAt])
+  @@map("attempts")
+}
+
+// A snapshot of exactly what was served. Survives later edits to the question,
+// which is what makes a disputed result defensible.
+model AttemptQuestion {
+  id         String @id @default(cuid())
+  attemptId  String
+  questionId String
+  position   Int
+
+  // Per-attempt option shuffle, stored so the same order can be re-rendered on resume.
+  optionOrder String[] // QuestionOption ids in presentation order
+
+  selectedOptionIds String[]  @default([])
+  isCorrect         Boolean?
+  answeredAt        DateTime?
+
+  attempt  Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  @@unique([attemptId, questionId])
+  @@unique([attemptId, position])
+  @@map("attempt_questions")
+}
+
+// Enforces "no user sees the same question twice in a day".
+// The unique constraint does the work — the selector just skips conflicts.
+model QuestionExposure {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String
+  servedOn   DateTime @db.Date
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId, servedOn])
+  @@index([userId, servedOn])
+  @@map("question_exposures")
+}
+
+// ============================================================
+// CERTIFICATES & BADGES
+// ============================================================
+
+enum CertificateStatus {
+  VALID
+  SUSPENDED // membership lapsed — reversible on renewal
+  REVOKED // permanent, e.g. proven misconduct
+}
+
+model Certificate {
+  id     String @id @default(cuid())
+  userId String
+
+  // Public, human-quotable identifier: pac-a.org/verify/{credentialId}
+  credentialId String @unique
+
+  attemptId String? @unique // null for panel-assessed (Fellow) awards
+
+  // Null for a FREE_OPEN completion certificate — those aren't tied to a paid
+  // tier, unlike a real MPACA/FPACA certification award.
+  tier        MembershipTier?
+  // Name snapshotted at issue — a later profile edit must not rewrite history.
+  holderName  String
+  designation String? // MPACA / FPACA
+
+  scoreBps  Int?
+  issuedAt  DateTime          @default(now())
+  expiresAt DateTime?
+  status    CertificateStatus @default(VALID)
+
+  pdfStorageKey   String?
+  badgeStorageKey String?
+
+  revokedAt     DateTime?
+  revokedReason String?
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempt Attempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@map("certificates")
+}
+
+// ============================================================
+// COURSES, PARTNERS & DISCOUNTS
+// ============================================================
+
+model Partner {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  logoKey     String?
+  websiteUrl  String?
+  description String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  courses     Course[]
+  discounts   DiscountCode[]
+  apiKeys     PartnerApiKey[]
+  redemptions DiscountRedemption[]
+
+  @@map("partners")
+}
+
+/**
+ * Lets a partner verify a PACA discount code in their OWN checkout.
+ *
+ * Needed because PACA operates two models: some partner courses are resold through
+ * PACA (payment and enrollment happen here), and for others the partner honours a
+ * PACA code on their own site. The second case is impossible without a way for the
+ * partner to ask "is this code valid, and is the holder a member in good standing?"
+ *
+ * Only the hash is stored — the raw key is shown once at creation and never again.
+ */
+model PartnerApiKey {
+  id        String    @id @default(cuid())
+  partnerId String
+  name      String // e.g. "Scrum.org checkout — production"
+  keyPrefix String // first 8 chars, shown in the admin UI for identification
+  keyHash   String    @unique // sha256 of the full key
+  lastUsedAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@map("partner_api_keys")
+}
+
+enum CourseProvider {
+  PACA
+  PARTNER
+}
+
+enum PublishStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Course {
+  id          String         @id @default(cuid())
+  slug        String         @unique
+  title       String
+  summary     String?
+  description String?
+  provider    CourseProvider @default(PACA)
+  partnerId   String?
+
+  isFree        Boolean @default(false)
+  priceUsdCents Int     @default(0)
+
+  coverImageKey String?
+  externalUrl   String? // partner-hosted courses link out
+  durationMins  Int?
+
+  status      PublishStatus @default(DRAFT)
+  publishedAt DateTime?
+
+  // Admin can push a course straight to member portals, not just the public site.
+  showOnPublicSite Boolean          @default(true)
+  visibleToTiers   MembershipTier[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner     Partner?       @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  enrollments Enrollment[]
+  discounts   DiscountCode[]
+
+  @@index([status, provider])
+  @@map("courses")
+}
+
+enum EnrollmentSource {
+  FREE
+  PURCHASED
+  ASSIGNED // granted by an admin
+}
+
+model Enrollment {
+  id       String           @id @default(cuid())
+  userId   String
+  courseId String
+  source   EnrollmentSource @default(FREE)
+
+  paymentId String? @unique
+
+  enrolledAt      DateTime  @default(now())
+  completedAt     DateTime?
+  progressPercent Int       @default(0)
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, courseId])
+  @@map("enrollments")
+}
+
+enum DiscountScope {
+  MEMBERSHIP
+  COURSE
+  EVENT
+  PARTNER_COURSE
+}
+
+model DiscountCode {
+  id          String        @id @default(cuid())
+  code        String        @unique
+  description String?
+  scope       DiscountScope
+
+  percentOff        Int? // 1..100
+  amountOffUsdCents Int?
+
+  courseId  String?
+  partnerId String?
+
+  // Targeting: by tier, or by named individuals, or both.
+  eligibleTiers   MembershipTier[] @default([])
+  eligibleUserIds String[]         @default([])
+
+  maxRedemptions  Int?
+  redemptionCount Int  @default(0)
+  maxPerUser      Int  @default(1)
+
+  validFrom  DateTime  @default(now())
+  validUntil DateTime?
+  isActive   Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+
+  course      Course?              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  partner     Partner?             @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  redemptions DiscountRedemption[]
+  payments    Payment[]
+
+  @@index([isActive, validUntil])
+  @@map("discount_codes")
+}
+
+enum RedemptionChannel {
+  PACA_CHECKOUT // resold partner course — money flows through PACA
+  PARTNER_API // partner honoured the code in their own checkout
+}
+
+model DiscountRedemption {
+  id             String            @id @default(cuid())
+  discountCodeId String
+  userId         String
+  channel        RedemptionChannel @default(PACA_CHECKOUT)
+
+  paymentId String? // set for PACA_CHECKOUT
+
+  // Set for PARTNER_API — lets PACA reconcile against the partner's own records.
+  partnerId         String?
+  externalReference String?
+
+  redeemedAt DateTime @default(now())
+
+  discountCode DiscountCode @relation(fields: [discountCodeId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partner      Partner?     @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@index([discountCodeId, userId])
+  @@index([partnerId, redeemedAt])
+  @@map("discount_redemptions")
+}
+
+// ============================================================
+// COMMUNICATIONS
+// ============================================================
+
+enum NotificationKind {
+  SYSTEM
+  MEMBERSHIP
+  PAYMENT
+  ASSESSMENT
+  CERTIFICATE
+  COURSE
+  ANNOUNCEMENT
+}
+
+model Notification {
+  id     String           @id @default(cuid())
+  userId String
+  kind   NotificationKind @default(SYSTEM)
+  title  String
+  body   String
+  link   String?
+  readAt DateTime?
+
+  campaignId String?
+
+  createdAt DateTime @default(now())
+
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign NotificationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+enum CampaignAudience {
+  ALL_MEMBERS
+  BY_TIER
+  SPECIFIC_USERS
+  ALL_USERS // includes unpaid registrants
+}
+
+model NotificationCampaign {
+  id              String           @id @default(cuid())
+  createdByUserId String
+  title           String
+  body            String
+  audience        CampaignAudience
+  tiers           MembershipTier[] @default([])
+  userIds         String[]         @default([])
+
+  sendInApp Boolean @default(true)
+  sendEmail Boolean @default(false)
+
+  scheduledFor   DateTime?
+  sentAt         DateTime?
+  recipientCount Int       @default(0)
+
+  createdAt DateTime @default(now())
+
+  createdBy     User           @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@map("notification_campaigns")
+}
+
+model Announcement {
+  id    String @id @default(cuid())
+  title String
+  body  String
+  slug  String @unique
+
+  status      PublishStatus @default(DRAFT)
+  publishedAt DateTime?
+  pinnedUntil DateTime?
+
+  // Empty = visible to everyone
+  visibleToTiers MembershipTier[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, publishedAt])
+  @@map("announcements")
+}
+
+model Invitation {
+  id        String          @id @default(cuid())
+  email     String
+  tier      MembershipTier?
+  tokenHash String          @unique
+
+  invitedByUserId  String
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedByUserId String?   @unique
+  revokedAt        DateTime?
+
+  createdAt DateTime @default(now())
+
+  invitedBy  User  @relation("Inviter", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  acceptedBy User? @relation("Invitee", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@map("invitations")
+}
+
+// ============================================================
+// LEGAL, CONSENT & DATA PROTECTION
+//
+// PACA stores CVs, student IDs, recommendation letters and passport-style ID —
+// squarely within Ghana's Data Protection Act 2012 and, for diaspora members,
+// GDPR. Publishing policy pages is not compliance on its own: you must be able to
+// prove WHICH version of a policy a member accepted, and WHEN.
+// ============================================================
+
+enum LegalDocumentType {
+  PRIVACY_POLICY
+  TERMS_AND_CONDITIONS
+  DATA_PROTECTION_POLICY
+  DATA_USAGE_POLICY
+  COOKIE_POLICY
+  CODE_OF_CONDUCT
+}
+
+/// Immutable once published. A change means a NEW version, never an edit —
+/// otherwise the consent record below points at text that no longer exists.
+model LegalDocument {
+  id      String            @id @default(cuid())
+  type    LegalDocumentType
+  version Int
+  slug    String
+  title   String
+  /// Markdown, rendered server-side.
+  body    String
+  summary String?
+
+  effectiveFrom DateTime
+  publishedAt   DateTime?
+  /// Exactly one row per type should carry this. Enforced in the service layer.
+  isCurrent     Boolean   @default(false)
+
+  /// Forces re-acceptance at next login when a change is material.
+  requiresReacceptance Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  consents UserConsent[]
+
+  @@unique([type, version])
+  @@unique([slug, version])
+  @@index([type, isCurrent])
+  @@map("legal_documents")
+}
+
+/// One row per user per document version. Never updated in place — a withdrawal
+/// sets withdrawnAt, and re-acceptance of a new version creates a new row.
+model UserConsent {
+  id         String @id @default(cuid())
+  userId     String
+  documentId String
+
+  acceptedAt DateTime  @default(now())
+  ipAddress  String?
+  userAgent  String?
+  withdrawnAt DateTime?
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document LegalDocument @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, documentId])
+  @@index([userId])
+  @@map("user_consents")
+}
+
+enum DataRequestType {
+  EXPORT // right of access — hand back everything held on them
+  ERASURE // right to be forgotten
+  RECTIFICATION // correct inaccurate data
+  RESTRICTION // stop processing pending a dispute
+}
+
+enum DataRequestStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+/// Data-subject requests carry statutory response deadlines, so they need to be
+/// tracked as work items rather than handled ad hoc from an inbox.
+model DataSubjectRequest {
+  id     String            @id @default(cuid())
+  userId String
+  type   DataRequestType
+  status DataRequestStatus @default(PENDING)
+
+  requestedAt DateTime  @default(now())
+  /// Statutory deadline, set on creation so overdue requests can be surfaced.
+  dueBy       DateTime
+  completedAt DateTime?
+
+  handledByUserId String?
+  notes           String?
+  /// Private, expiring object-store key for a fulfilled EXPORT.
+  exportStorageKey String?
+  rejectionReason  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, dueBy])
+  @@index([userId])
+  @@map("data_subject_requests")
+}
+
+// ============================================================
+// DIGITAL LIBRARY
+// ============================================================
+
+enum ResourceKind {
+  ARTICLE
+  PDF
+  VIDEO
+  LINK
+  TEMPLATE
+}
+
+model Resource {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  title       String
+  description String?
+  kind        ResourceKind
+
+  storageKey  String? // uploaded file
+  externalUrl String? // or a link out
+  topicId     String?
+
+  // null = public; otherwise the minimum tier that unlocks it
+  minTier MembershipTier?
+
+  status        PublishStatus @default(DRAFT)
+  publishedAt   DateTime?
+  downloadCount Int           @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  topic Topic? @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  @@index([status, kind])
+  @@map("resources")
+}
+
+model FaqItem {
+  id        String        @id @default(cuid())
+  question  String
+  answer    String
+  category  String?
+  sortOrder Int           @default(0)
+  status    PublishStatus @default(PUBLISHED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("faq_items")
+}
+
+// ============================================================
+// JOBS BOARD
+// Aggregated from legitimate sources (public ATS boards, RSS, partner posts).
+// No LinkedIn scraping — it breaches their ToS.
+// ============================================================
+
+enum JobSourceKind {
+  GREENHOUSE
+  LEVER
+  WORKABLE
+  ASHBY
+  RSS
+  ADZUNA
+  PARTNER_SUBMITTED
+  MANUAL
+}
+
+model JobSource {
+  id       String        @id @default(cuid())
+  name     String
+  kind     JobSourceKind
+  config   Json          @default("{}") // board token, feed URL, query params
+  isActive Boolean       @default(true)
+
+  lastRunAt      DateTime?
+  lastRunStatus  String?
+  lastRunMessage String?
+
+  createdAt DateTime @default(now())
+
+  listings JobListing[]
+
+  @@map("job_sources")
+}
+
+enum AgileRole {
+  SCRUM_MASTER
+  PRODUCT_OWNER
+  PRODUCT_MANAGER
+  AGILE_COACH
+  RELEASE_TRAIN_ENGINEER
+  DELIVERY_MANAGER
+  BUSINESS_ANALYST
+  AGILE_TRAINER
+  OTHER
+}
+
+enum Seniority {
+  ENTRY
+  MID
+  SENIOR
+  LEAD
+  EXECUTIVE
+}
+
+enum JobStatus {
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  EXPIRED
+}
+
+model JobListing {
+  id         String @id @default(cuid())
+  sourceId   String
+  externalId String // stable id from the source — the dedupe key
+
+  title          String
+  company        String
+  companyLogoUrl String?
+  location       String?
+  country        String? // ISO alpha-2
+  isRemote       Boolean @default(false)
+  employmentType String?
+  description    String?
+  applyUrl       String
+
+  salaryMin      Int?
+  salaryMax      Int?
+  salaryCurrency String?
+
+  // AI classification — a low-confidence classification lands in PENDING_REVIEW.
+  agileRole      AgileRole?
+  seniority      Seniority?
+  aiConfidence   Decimal?   @db.Decimal(4, 3)
+  aiClassifiedAt DateTime?
+
+  status JobStatus @default(PENDING_REVIEW)
+
+  postedAt  DateTime?
+  expiresAt DateTime?
+  fetchedAt DateTime  @default(now())
+
+  source       JobSource         @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  savedBy      SavedJob[]
+  applications JobApplication[]
+
+  @@unique([sourceId, externalId])
+  @@index([status, agileRole, country])
+  @@index([postedAt])
+  @@map("job_listings")
+}
+
+model SavedJob {
+  id           String   @id @default(cuid())
+  userId       String
+  jobListingId String
+  savedAt      DateTime @default(now())
+
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  JobListing @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobListingId])
+  @@map("saved_jobs")
+}
+
+enum JobApplicationStatus {
+  SUBMITTED
+  REVIEWED
+  SHORTLISTED
+  REJECTED
+}
+
+/**
+ * In-platform application to a JobListing. There is no employer login yet — an
+ * employer never sees this directly, so review happens on the admin side
+ * (@@see AdminJobApplicationsController). The resume is optional: a member can
+ * apply on the strength of their cover note and PACA profile alone.
+ */
+model JobApplication {
+  id               String               @id @default(cuid())
+  userId           String
+  jobListingId     String
+  coverNote        String?
+  resumeStorageKey String?
+  resumeName       String?
+  status           JobApplicationStatus @default(SUBMITTED)
+  appliedAt        DateTime             @default(now())
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job        JobListing @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
+  reviewedBy User?      @relation("JobApplicationReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, jobListingId])
+  @@index([jobListingId, status])
+  @@map("job_applications")
+}

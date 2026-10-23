@@ -1,0 +1,19 @@
+{
+  "name": "@paca/db",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "deploy": "prisma migrate deploy",
+    "studio": "prisma studio",
+    "validate": "prisma validate",
+    "format": "prisma format",
+    "seed": "tsx prisma/seed.ts"
+  },
+  "prisma": { "seed": "tsx prisma/seed.ts" },
+  "dependencies": { "@prisma/client": "6.16.2" },
+  "devDependencies": { "prisma": "6.16.2", "tsx": "^4.19.2", "typescript": "^5.7.3" }
+}
