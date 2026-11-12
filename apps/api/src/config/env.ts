@@ -22,6 +22,14 @@ const schema = z.object({
   CORS_ORIGINS: z.string().optional(),
 
   DATABASE_URL: z.string().min(1),
+  /**
+   * Shared store for rate-limit counters, so limits survive restarts and hold
+   * across API instances. Unset = in-memory counters (fine for local dev).
+   */
+  REDIS_URL: z.string().url().optional(),
+  /** clamd for upload scanning. Unset = uploads are stored unscanned (PENDING). */
+  CLAMAV_HOST: z.string().optional(),
+  CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
 
   JWT_ACCESS_SECRET: z.string().min(MIN_SECRET_LENGTH, `must be at least ${MIN_SECRET_LENGTH} characters`),
   JWT_REFRESH_SECRET: z.string().min(MIN_SECRET_LENGTH, `must be at least ${MIN_SECRET_LENGTH} characters`),
@@ -29,7 +37,16 @@ const schema = z.object({
   JWT_REFRESH_TTL: z.string().default("30d"),
   COOKIE_DOMAIN: z.string().default("127.0.0.1"),
 
+  /** Where application documents are written. Point at a persistent volume in deployment. */
+  UPLOAD_DIR: z.string().optional(),
+
   PAYSTACK_SECRET_KEY: z.string().optional(),
+  /** Charge currency. Mobile money needs the account's local currency (GHS in Ghana). */
+  PAYSTACK_CURRENCY: z.string().length(3).toUpperCase().default("GHS"),
+  /** Local currency units per 1 USD — tier prices are stored in USD. Required unless charging in USD. */
+  PAYSTACK_USD_RATE: z.coerce.number().positive().optional(),
+  /** Payment methods offered in the popup; Paystack hides any the account/currency doesn't support. */
+  PAYSTACK_CHANNELS: z.string().default("card,mobile_money,bank,bank_transfer"),
   ANTHROPIC_API_KEY: z.string().optional(),
   AI_MODEL: z.string().default("claude-sonnet-5"),
 });
@@ -41,7 +58,10 @@ let cached: Env | null = null;
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (cached) return cached;
 
-  const parsed = schema.safeParse(source);
+  // docker compose passes an unset `${VAR:-}` as "" — treat that as absent, not as
+  // a value (z.coerce.number would otherwise read "" as 0 and fail the boot).
+  const cleaned = Object.fromEntries(Object.entries(source).filter(([, v]) => v !== ""));
+  const parsed = schema.safeParse(cleaned);
 
   if (!parsed.success) {
     const details = parsed.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
@@ -55,9 +75,22 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   }
 
   if (parsed.data.NODE_ENV === "production") {
-    if (parsed.data.JWT_ACCESS_SECRET.includes("CHANGE_ME")) {
+    if (parsed.data.JWT_ACCESS_SECRET.includes("CHANGE_ME") || parsed.data.JWT_REFRESH_SECRET.includes("CHANGE_ME")) {
       throw new Error("Refusing to start in production with placeholder JWT secrets");
     }
+  }
+
+  if (parsed.data.PAYSTACK_SECRET_KEY && parsed.data.PAYSTACK_CURRENCY !== "USD" && !parsed.data.PAYSTACK_USD_RATE) {
+    throw new Error(`PAYSTACK_USD_RATE is required when PAYSTACK_CURRENCY is ${parsed.data.PAYSTACK_CURRENCY}`);
+  }
+  if (parsed.data.NODE_ENV === "production" && parsed.data.PAYSTACK_SECRET_KEY?.startsWith("sk_test_")) {
+    // Allowed — the droplet is a test environment — but make it impossible to miss.
+    console.warn("WARNING: running in production mode with a Paystack TEST key; no real money will move.");
+  }
+
+  // Production must not silently fall back to unscanned uploads.
+  if (parsed.data.NODE_ENV === "production" && !parsed.data.CLAMAV_HOST) {
+    throw new Error("CLAMAV_HOST is required in production — uploads must be virus-scanned");
   }
 
   cached = parsed.data;

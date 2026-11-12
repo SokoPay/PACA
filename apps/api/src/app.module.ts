@@ -9,6 +9,7 @@ import { ContentModule } from "./content/content.module";
 import { AssessmentModule } from "./assessment/assessment.module";
 import { ActivityModule } from "./activity/activity.module";
 import { CertificateModule } from "./certificates/certificate.module";
+import { PaymentsModule } from "./payments/payments.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { HealthController } from "./health.controller";
@@ -31,6 +32,7 @@ import { HealthController } from "./health.controller";
     AssessmentModule,
     ActivityModule,
     CertificateModule,
+    PaymentsModule,
   ],
   controllers: [HealthController],
   providers: [

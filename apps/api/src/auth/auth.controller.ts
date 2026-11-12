@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Post, Req, UnauthorizedException } from "@nestjs/common";
+import { RouteConfig } from "@nestjs/platform-fastify";
 import { z } from "zod";
 import { AuthService } from "./auth.service";
 import { Public } from "../common/decorators/public.decorator";
@@ -36,11 +37,21 @@ const loginSchema = z.object({
 
 const refreshSchema = z.object({ refreshToken: z.string().min(1) });
 
+/**
+ * Per-IP limits for the unauthenticated credential endpoints, far tighter than
+ * the global 300/min. Account lockout alone stops guessing against one account
+ * but not password spraying across many, and register would otherwise be an
+ * unbounded account-creation endpoint.
+ */
+const STRICT_LIMIT = { rateLimit: { max: 10, timeWindow: "1 minute" } };
+const REFRESH_LIMIT = { rateLimit: { max: 30, timeWindow: "1 minute" } };
+
 @Controller("auth")
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Public()
+  @RouteConfig(STRICT_LIMIT)
   @Post("register")
   register(
     @Body(new ZodValidationPipe(registerSchema)) body: z.infer<typeof registerSchema>,
@@ -50,6 +61,7 @@ export class AuthController {
   }
 
   @Public()
+  @RouteConfig(STRICT_LIMIT)
   @Post("login")
   @HttpCode(200)
   login(
@@ -60,6 +72,7 @@ export class AuthController {
   }
 
   @Public()
+  @RouteConfig(REFRESH_LIMIT)
   @Post("refresh")
   @HttpCode(200)
   refresh(

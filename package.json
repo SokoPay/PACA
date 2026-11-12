@@ -19,7 +19,9 @@
     "db:generate": "npm run generate --workspace=@paca/db",
     "db:migrate": "npm run migrate --workspace=@paca/db",
     "db:seed": "npm run seed --workspace=@paca/db",
-    "db:studio": "npm run studio --workspace=@paca/db"
+    "db:studio": "npm run studio --workspace=@paca/db",
+    "db:deploy": "npm run deploy --workspace=@paca/db",
+    "db:promote": "npm run promote --workspace=@paca/db --"
   },
   "devDependencies": {
     "turbo": "^2.5.5",

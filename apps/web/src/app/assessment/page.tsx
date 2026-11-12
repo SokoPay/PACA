@@ -208,7 +208,10 @@ export default function AssessmentPage() {
           </Link>
         </div>
 
-        <h2 className="mt-12 text-lg font-semibold">Review</h2>
+        <h2 className="mt-12 text-lg font-semibold">Your answers</h2>
+        <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+          Correct answers are not shown, so the assessment stays a fair test for everyone who sits it.
+        </p>
         <div className="mt-4 space-y-5">
           {result.review.map((q, i) => (
             <div
@@ -216,22 +219,33 @@ export default function AssessmentPage() {
               className="rounded-xl border p-4"
               style={{ borderColor: q.isCorrect ? "var(--color-paca-500)" : "#c0392b" }}
             >
-              <p className="text-sm font-medium">{q.stem}</p>
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm font-medium">{q.stem}</p>
+                <span
+                  className="shrink-0 text-xs font-semibold"
+                  style={{ color: q.isCorrect ? "var(--color-paca-500)" : "#c0392b" }}
+                >
+                  {q.isCorrect ? "Correct" : "Incorrect"}
+                </span>
+              </div>
               <ul className="mt-3 space-y-1.5">
                 {q.options.map((o) => {
                   const wasSelected = q.selectedOptionIds.includes(o.id);
-                  const color = o.isCorrect ? "var(--color-paca-500)" : wasSelected ? "#c0392b" : "var(--text-muted)";
                   return (
-                    <li key={o.id} className="flex items-center gap-2 text-sm" style={{ color }}>
-                      <span>{o.isCorrect ? "●" : wasSelected ? "✕" : "○"}</span>
+                    <li
+                      key={o.id}
+                      className="flex items-center gap-2 text-sm"
+                      style={{ color: wasSelected ? "inherit" : "var(--text-muted)" }}
+                    >
+                      <span>{wasSelected ? "●" : "○"}</span>
                       <span>{o.text}</span>
                     </li>
                   );
                 })}
               </ul>
-              {q.explanation && (
-                <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  {q.explanation}
+              {q.selectedOptionIds.length === 0 && (
+                <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                  Not answered
                 </p>
               )}
             </div>
@@ -248,7 +262,7 @@ export default function AssessmentPage() {
         <h1 className="text-3xl font-bold tracking-tight">PACA open assessment</h1>
         <p className="mt-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>
           A free practice assessment drawn from the PACA question bank — 20 questions, 30 minutes, open to every
-          member. It does not issue a certificate; use it to gauge where you stand.
+          member. Score 70% or higher to earn a certificate of completion.
         </p>
         {error && (
           <p role="alert" className="mt-6 rounded-lg px-4 py-3 text-sm" style={{ background: "#c0392b1a", color: "#c0392b" }}>

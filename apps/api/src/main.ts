@@ -5,6 +5,7 @@ import { FastifyAdapter, NestFastifyApplication } from "@nestjs/platform-fastify
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
+import Redis from "ioredis";
 import { AppModule } from "./app.module";
 import { loadEnv } from "./config/env";
 
@@ -20,7 +21,8 @@ async function bootstrap(): Promise<void> {
     // application document upload. @fastify/multipart below applies its own
     // tighter per-file cap.
     new FastifyAdapter({ trustProxy: true, bodyLimit: 10_485_760 }),
-    { bufferLogs: true },
+    // rawBody: the Paystack webhook signature is computed over the exact bytes sent.
+    { bufferLogs: true, rawBody: true },
   );
 
   await app.register(helmet, {
@@ -31,12 +33,23 @@ async function bootstrap(): Promise<void> {
     limits: { fileSize: 8 * 1024 * 1024, files: 1 },
   });
 
-  // Coarse global limit. Auth endpoints need something far tighter; that belongs
-  // on the routes themselves once login is under real load.
+  // Counters live in Redis when configured, so a restart does not reset them and
+  // several API instances share one budget per IP. skipOnError fails open: a Redis
+  // outage degrades rate limiting rather than taking the whole API down.
+  const redis = env.REDIS_URL
+    ? new Redis(env.REDIS_URL, { connectTimeout: 2000, maxRetriesPerRequest: 1, enableOfflineQueue: false })
+    : undefined;
+  redis?.on("error", (err) => logger.warn(`Redis: ${err.message}`));
+  // An open Redis socket would otherwise keep the process alive after shutdown.
+  if (redis) app.getHttpAdapter().getInstance().addHook("onClose", async () => void redis.quit());
+
+  // Coarse global limit; auth routes set tighter ones via @RouteConfig.
   await app.register(rateLimit, {
     max: 300,
     timeWindow: "1 minute",
+    ...(redis ? { redis, nameSpace: "paca-ratelimit-", skipOnError: true } : {}),
   });
+  logger.log(`Rate limit store: ${redis ? "redis" : "in-memory"}`);
 
   const allowedOrigins = (env.CORS_ORIGINS ?? env.WEB_PUBLIC_URL)
     .split(",")

@@ -11,7 +11,8 @@
     "studio": "prisma studio",
     "validate": "prisma validate",
     "format": "prisma format",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "promote": "tsx scripts/promote-user.ts"
   },
   "prisma": { "seed": "tsx prisma/seed.ts" },
   "dependencies": { "@prisma/client": "6.16.2" },

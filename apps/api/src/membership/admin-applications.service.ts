@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { ApplicationStatus, MembershipTier } from "@prisma/client";
+import { Prisma, type ApplicationStatus, type MembershipTier } from "@prisma/client";
 import { PrismaService } from "../common/prisma.service";
 import { AuditService } from "../common/audit.service";
 
@@ -90,8 +90,54 @@ export class AdminApplicationsService {
       throw new BadRequestException(`An application with status ${application.status} cannot be approved`);
     }
 
-    const memberNumber = await this.generateMemberNumber();
+    const updated = await this.approveWithMemberNumber(id, application, reviewerId, notes);
 
+    await this.audit.record({
+      actorUserId: reviewerId,
+      action: "application.approved",
+      entityType: "MembershipApplication",
+      entityId: id,
+      metadata: { tier: application.tier },
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+    });
+
+    return updated;
+  }
+
+  /**
+   * Member numbers are count-based, so two approvals at the same moment can
+   * compute the same one. memberNumber is unique, so the loser of that race gets
+   * P2002 — retry with a fresh count rather than failing the approval.
+   */
+  private async approveWithMemberNumber(
+    id: string,
+    application: { userId: string; tier: MembershipTier },
+    reviewerId: string,
+    notes: string | undefined,
+  ) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.approveOnce(id, application, reviewerId, notes, await this.generateMemberNumber());
+      } catch (err) {
+        // meta.target is the field list or the constraint name depending on the
+        // driver — both mention member_number / memberNumber.
+        const isMemberNumberClash =
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === "P2002" &&
+          /member_?number/i.test(JSON.stringify(err.meta?.target ?? ""));
+        if (!isMemberNumberClash || attempt >= 4) throw err;
+      }
+    }
+  }
+
+  private async approveOnce(
+    id: string,
+    application: { userId: string; tier: MembershipTier },
+    reviewerId: string,
+    notes: string | undefined,
+    memberNumber: string,
+  ) {
     const [updated] = await this.prisma.$transaction([
       this.prisma.membershipApplication.update({
         where: { id },
@@ -115,16 +161,6 @@ export class AdminApplicationsService {
         },
       }),
     ]);
-
-    await this.audit.record({
-      actorUserId: reviewerId,
-      action: "application.approved",
-      entityType: "MembershipApplication",
-      entityId: id,
-      metadata: { tier: application.tier },
-      ipAddress: ctx.ipAddress,
-      userAgent: ctx.userAgent,
-    });
 
     return updated;
   }

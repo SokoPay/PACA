@@ -5,12 +5,31 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   fetchMembershipStatus,
-  formatUsd,
+  fetchMyPayments,
+  formatMoney,
   logout,
   restoreSession,
   type MembershipStatus,
+  type PaymentView,
   type SessionUser,
 } from "@/lib/api";
+import { PayMembershipButton } from "@/components/PayMembershipButton";
+
+const PAYMENT_STATUS: Record<PaymentView["status"], string> = {
+  INITIALIZED: "Started",
+  PENDING: "Processing",
+  SUCCESS: "Paid",
+  FAILED: "Failed",
+  ABANDONED: "Not completed",
+  REFUNDED: "Refunded",
+};
+
+const CHANNEL: Record<string, string> = {
+  card: "Card",
+  mobile_money: "Mobile money",
+  bank: "Bank",
+  bank_transfer: "Bank transfer",
+};
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Draft",
@@ -30,8 +49,20 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [status, setStatus] = useState<MembershipStatus | null>(null);
+  const [payments, setPayments] = useState<PaymentView[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [justPaid, setJustPaid] = useState(false);
+
+  async function loadStatus() {
+    try {
+      const [s, p] = await Promise.all([fetchMembershipStatus(), fetchMyPayments().catch(() => [])]);
+      setStatus(s);
+      setPayments(p);
+    } catch {
+      setError("Could not load your membership status.");
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -41,13 +72,8 @@ export default function DashboardPage() {
         return;
       }
       setUser(session);
-      try {
-        setStatus(await fetchMembershipStatus());
-      } catch {
-        setError("Could not load your membership status.");
-      } finally {
-        setLoading(false);
-      }
+      await loadStatus();
+      setLoading(false);
     })();
   }, [router]);
 
@@ -105,6 +131,16 @@ export default function DashboardPage() {
         </p>
       )}
 
+      {justPaid && status?.membership?.status === "ACTIVE" && (
+        <p
+          role="status"
+          className="mt-6 rounded-lg px-4 py-3 text-sm font-medium"
+          style={{ background: "var(--color-paca-50)", color: "var(--color-paca-800)" }}
+        >
+          Payment received — welcome to PACA! Your membership is now active.
+        </p>
+      )}
+
       {/*
         The "unlock your benefits" prompt. It appears for every state short of an
         active membership, and always says what the next step actually is.
@@ -129,13 +165,15 @@ export default function DashboardPage() {
 
           <div className="mt-4">
             {action.kind === "PAY" && (
-              <button
-                className="rounded-lg bg-paca-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-paca-600 disabled:opacity-60"
-                disabled
-                title="Payment provider not yet connected"
-              >
-                Pay {formatUsd(action.amountUsdCents)} — coming soon
-              </button>
+              <PayMembershipButton
+                amountUsdCents={action.amountUsdCents}
+                chargeAmount={action.chargeAmount}
+                chargeCurrency={action.chargeCurrency}
+                onPaid={() => {
+                  setJustPaid(true);
+                  void loadStatus();
+                }}
+              />
             )}
             {action.kind === "APPLY" && (
               <Link
@@ -251,6 +289,38 @@ export default function DashboardPage() {
           ))}
         </div>
       </section>
+
+      {payments.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+            Payments
+          </h2>
+          <div className="mt-3 overflow-x-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
+            <table className="w-full text-left text-sm">
+              <thead style={{ color: "var(--text-muted)" }}>
+                <tr>
+                  <th className="px-4 py-2 font-medium">Date</th>
+                  <th className="px-4 py-2 font-medium">Amount</th>
+                  <th className="px-4 py-2 font-medium">Method</th>
+                  <th className="px-4 py-2 font-medium">Status</th>
+                  <th className="px-4 py-2 font-medium">Reference</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((p) => (
+                  <tr key={p.id} className="border-t" style={{ borderColor: "var(--border)" }}>
+                    <td className="px-4 py-2">{new Date(p.paidAt ?? p.createdAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-2">{formatMoney(p.amount, p.currency)}</td>
+                    <td className="px-4 py-2">{p.channel ? (CHANNEL[p.channel] ?? p.channel) : "—"}</td>
+                    <td className="px-4 py-2">{PAYMENT_STATUS[p.status]}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{p.reference}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </main>
   );
 }

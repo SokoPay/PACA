@@ -44,11 +44,10 @@ export class AuthService {
 
     const passwordHash = await this.passwords.hash(input.password);
 
-    // There is no other way to create an ADMIN/SUPERADMIN account — no seed data,
-    // no promotion endpoint — so the very first registration on an empty instance
-    // bootstraps itself as SUPERADMIN rather than leaving the system unownable.
-    const isFirstAccount = (await this.prisma.user.count()) === 0;
-
+    // Every self-registration is a MEMBER. The first SUPERADMIN is promoted from
+    // the server with `npm run db:promote -- <email> SUPERADMIN` — auto-promoting
+    // the first registrant would hand a fresh public deployment to whoever reaches
+    // the signup page first.
     const user = await this.prisma.user.create({
       data: {
         email,
@@ -58,7 +57,7 @@ export class AuthService {
         phone: input.phone?.trim() || null,
         // Free registration; membership is applied for separately and paid later.
         status: "PENDING_VERIFICATION",
-        role: isFirstAccount ? "SUPERADMIN" : "MEMBER",
+        role: "MEMBER",
         marketingOptInAt: input.marketingOptIn ? new Date() : null,
         profile: { create: {} },
       },

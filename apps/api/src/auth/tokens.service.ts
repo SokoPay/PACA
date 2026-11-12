@@ -110,11 +110,16 @@ export class TokensService {
       throw new UnauthorizedException("Account is not active");
     }
 
-    // Revoke the presented token, then mint its successor in the same family.
-    await this.prisma.refreshToken.update({
-      where: { id: existing.id },
+    // Revoke the presented token, then mint its successor in the same family. The
+    // conditional update is the atomic claim: two concurrent rotations of the same
+    // token cannot both see revokedAt = null and each mint a live successor.
+    const claimed = await this.prisma.refreshToken.updateMany({
+      where: { id: existing.id, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    if (claimed.count === 0) {
+      throw new UnauthorizedException("Refresh token already used");
+    }
 
     return this.issuePair(existing.user, context, existing.family);
   }

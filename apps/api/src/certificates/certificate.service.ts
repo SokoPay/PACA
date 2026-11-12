@@ -93,7 +93,7 @@ export class CertificateService {
   }
 
   /** Rendered fresh on every request — cheap enough that caching isn't worth the storage bookkeeping yet. */
-  renderPdf(cert: { holderName: string; credentialId: string; scoreBps: number | null; issuedAt: Date; tier: string | null }): PDFDocument {
+  renderPdf(cert: { holderName: string; credentialId: string; scoreBps: number | null; issuedAt: Date; tier: string | null }): PDFKit.PDFDocument {
     const env = loadEnv();
     const doc = new PDFDocument({ layout: "landscape", size: "A4", margin: 0 });
 

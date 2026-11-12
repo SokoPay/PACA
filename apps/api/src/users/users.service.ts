@@ -2,6 +2,10 @@ import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/commo
 import type { UserRole, UserStatus } from "@prisma/client";
 import { PrismaService } from "../common/prisma.service";
 import { AuditService } from "../common/audit.service";
+import type { AuthenticatedUser } from "../common/guards/jwt-auth.guard";
+
+/** Mirrors RolesGuard's hierarchy. */
+const RANK: Record<UserRole, number> = { MEMBER: 0, REVIEWER: 1, ADMIN: 2, SUPERADMIN: 3 };
 
 export interface ListUsersQuery {
   query?: string;
@@ -100,11 +104,18 @@ export class UsersService {
     return user;
   }
 
-  async setStatus(id: string, status: "ACTIVE" | "SUSPENDED", actorId: string, ctx: RequestContext) {
+  async setStatus(id: string, status: "ACTIVE" | "SUSPENDED", actor: AuthenticatedUser, ctx: RequestContext) {
+    const actorId = actor.id;
     if (id === actorId) throw new ForbiddenException("You cannot change your own account status");
 
-    const before = await this.prisma.user.findUnique({ where: { id }, select: { status: true } });
+    const before = await this.prisma.user.findUnique({ where: { id }, select: { status: true, role: true } });
     if (!before) throw new NotFoundException("User not found");
+
+    // An ADMIN must not be able to suspend another ADMIN or a SUPERADMIN — that
+    // would let a single compromised ADMIN account lock out everyone above it.
+    if (actor.role !== "SUPERADMIN" && RANK[before.role] >= RANK[actor.role]) {
+      throw new ForbiddenException("You can only change the status of accounts below your own role");
+    }
 
     const user = await this.prisma.user.update({ where: { id }, data: { status }, select: LIST_SELECT });
 

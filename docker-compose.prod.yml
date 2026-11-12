@@ -1,0 +1,139 @@
+# Production-style stack for a single droplet:
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# Only Caddy publishes ports. Postgres and the API are reachable solely on the
+# internal network — the API trusts X-Forwarded-For (for per-IP rate limits), which
+# is only safe while Caddy is the one setting it.
+
+x-app: &app
+  build:
+    context: .
+    args:
+      NEXT_PUBLIC_API_URL: /api/v1
+  image: paca-app:latest
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: paca
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: paca
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paca -d paca"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Rate-limit counters only — nothing durable, so no persistence volume.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Virus scanning for uploaded documents. Uses ~1.2-1.5 GB RAM once signatures
+  # load, and takes a few minutes on first boot to download them — uploads get a
+  # "scanning temporarily unavailable" error until it is ready.
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    volumes:
+      - clamav-db:/var/lib/clamav
+
+  # One-shot: applies pending migrations, then exits. The API waits for it.
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["npm", "run", "db:deploy"]
+    environment:
+      DATABASE_URL: postgresql://paca:${POSTGRES_PASSWORD}@postgres:5432/paca?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    working_dir: /app/apps/api
+    command: ["node", "dist/main.js"]
+    environment:
+      NODE_ENV: production
+      API_PORT: "4100"
+      API_PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env.production}
+      WEB_PUBLIC_URL: ${PUBLIC_URL}
+      CORS_ORIGINS: ${PUBLIC_URL}
+      DATABASE_URL: postgresql://paca:${POSTGRES_PASSWORD}@postgres:5432/paca?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env.production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env.production}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-30d}
+      UPLOAD_DIR: /data/uploads
+      REDIS_URL: redis://redis:6379
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+      PAYSTACK_CURRENCY: ${PAYSTACK_CURRENCY:-GHS}
+      PAYSTACK_USD_RATE: ${PAYSTACK_USD_RATE:-}
+      PAYSTACK_CHANNELS: ${PAYSTACK_CHANNELS:-card,mobile_money,bank,bank_transfer}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      clamav:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  web:
+    <<: *app
+    working_dir: /app/apps/web
+    command: ["node", "/app/node_modules/next/dist/bin/next", "start", "-p", "3100", "-H", "0.0.0.0"]
+    environment:
+      NODE_ENV: production
+      # Server components fetch the API directly over the internal network.
+      INTERNAL_API_URL: http://api:4100/api/v1
+    depends_on:
+      api:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # A domain name (e.g. paca-test.example.com) gets automatic HTTPS.
+      # Leave it as ":80" to serve plain HTTP on the droplet's IP.
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+      - api
+
+volumes:
+  postgres-data:
+  uploads:
+  clamav-db:
+  caddy-data:
+  caddy-config:

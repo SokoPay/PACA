@@ -3,6 +3,7 @@ import type { MembershipTier } from "@prisma/client";
 import { PrismaService } from "../common/prisma.service";
 import { AuditService } from "../common/audit.service";
 import { requiredDocuments, schemaForTier, TIER_FORMS } from "./tier-forms";
+import { loadEnv } from "../config/env";
 import type { AuthenticatedUser } from "../common/guards/jwt-auth.guard";
 
 export interface RequestContext {
@@ -207,6 +208,15 @@ export class ApplicationsService {
     return updated;
   }
 
+  /** What the Paystack checkout will actually charge — same conversion as PaymentsService. */
+  private chargeEstimate(amountUsdCents: number): { chargeAmount: number | null; chargeCurrency: string | null } {
+    const env = loadEnv();
+    if (!env.PAYSTACK_SECRET_KEY) return { chargeAmount: null, chargeCurrency: null };
+    const rate = env.PAYSTACK_CURRENCY === "USD" ? 1 : env.PAYSTACK_USD_RATE;
+    if (!rate) return { chargeAmount: null, chargeCurrency: null };
+    return { chargeAmount: Math.round(amountUsdCents * rate), chargeCurrency: env.PAYSTACK_CURRENCY };
+  }
+
   /**
    * The member's own dashboard view: what they hold, what they owe, what is blocked.
    * `nextAction` is what drives the "unlock your benefits" prompt in the UI.
@@ -225,7 +235,7 @@ export class ApplicationsService {
       | { kind: "APPLY"; message: string }
       | { kind: "COMPLETE_DRAFT"; message: string; applicationId: string }
       | { kind: "AWAIT_REVIEW"; message: string }
-      | { kind: "PAY"; message: string; amountUsdCents: number }
+      | { kind: "PAY"; message: string; amountUsdCents: number; chargeAmount: number | null; chargeCurrency: string | null }
       | { kind: "SIT_EXAM"; message: string }
       | { kind: "NONE"; message: string };
 
@@ -233,11 +243,16 @@ export class ApplicationsService {
       nextAction = tierConfig?.requiresExam
         ? { kind: "SIT_EXAM", message: "Your membership is active. Sit the certification assessment to earn your certificate and badge." }
         : { kind: "NONE", message: "Your membership is active." };
-    } else if (membership?.status === "PENDING_PAYMENT") {
+    } else if (membership?.status === "PENDING_PAYMENT" || membership?.status === "LAPSED") {
+      const amountUsdCents = tierConfig?.priceUsdCents ?? 0;
       nextAction = {
         kind: "PAY",
-        message: "Your application was approved. Pay your membership fee to unlock your PACA benefits.",
-        amountUsdCents: tierConfig?.priceUsdCents ?? 0,
+        message:
+          membership.status === "LAPSED"
+            ? "Your membership has lapsed. Renew it to restore your PACA benefits and certificates."
+            : "Your application was approved. Pay your membership fee to unlock your PACA benefits.",
+        amountUsdCents,
+        ...this.chargeEstimate(amountUsdCents),
       };
     } else if (latest?.status === "SUBMITTED" || latest?.status === "UNDER_REVIEW") {
       nextAction = { kind: "AWAIT_REVIEW", message: "Your application is with the review panel. We will email you when there is a decision." };

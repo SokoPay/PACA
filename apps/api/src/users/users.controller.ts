@@ -59,7 +59,7 @@ export class UsersController {
     @CurrentUser() user: AuthenticatedUser,
     @Req() req: { ip?: string; headers: Record<string, string | undefined> },
   ) {
-    return this.users.setStatus(id, body.status, user.id, context(req));
+    return this.users.setStatus(id, body.status, user, context(req));
   }
 
   // Soft delete only (see UsersService.softDelete) — same trust boundary as a

@@ -99,6 +99,17 @@ export class AssessmentService {
   }
 
   private async score(attemptId: string, status: "SUBMITTED" | "EXPIRED") {
+    // Atomic claim: only one caller may move an attempt out of IN_PROGRESS. A
+    // double-clicked submit, or a submit racing the expiry check, would otherwise
+    // score the same attempt twice and could issue two certificates.
+    const claimed = await this.prisma.attempt.updateMany({
+      where: { id: attemptId, status: "IN_PROGRESS" },
+      data: { status, submittedAt: new Date() },
+    });
+    if (claimed.count === 0) {
+      return this.prisma.attempt.findUniqueOrThrow({ where: { id: attemptId } });
+    }
+
     const questions = await this.prisma.attemptQuestion.findMany({
       where: { attemptId },
       include: { question: { include: { options: true } } },
@@ -120,7 +131,7 @@ export class AssessmentService {
 
     const updated = await this.prisma.attempt.update({
       where: { id: attemptId },
-      data: { status, submittedAt: new Date(), scoreBps, correctCount, passed },
+      data: { scoreBps, correctCount, passed },
     });
 
     if (passed) {
@@ -254,16 +265,20 @@ export class AssessmentService {
       throw new BadRequestException("Time is up — this attempt has been submitted automatically");
     }
 
-    const question = await this.prisma.question.findUnique({ where: { id: questionId }, include: { options: true } });
-    if (!question) throw new NotFoundException("Question not found");
-    const validIds = new Set(question.options.map((o) => o.id));
+    // Only questions actually drawn for this attempt can be answered.
+    const slot = await this.prisma.attemptQuestion.findUnique({
+      where: { attemptId_questionId: { attemptId, questionId } },
+      include: { question: { include: { options: true } } },
+    });
+    if (!slot) throw new NotFoundException("Question is not part of this attempt");
+    const validIds = new Set(slot.question.options.map((o) => o.id));
     if (!selectedOptionIds.every((id) => validIds.has(id))) {
       throw new BadRequestException("One or more selected options do not belong to this question");
     }
 
     await this.prisma.attemptQuestion.update({
       where: { attemptId_questionId: { attemptId, questionId } },
-      data: { selectedOptionIds, answeredAt: new Date() },
+      data: { selectedOptionIds: [...new Set(selectedOptionIds)], answeredAt: new Date() },
     });
 
     return { saved: true };
@@ -288,14 +303,20 @@ export class AssessmentService {
     return this.resultView(attemptId);
   }
 
-  /** Full review for a finished attempt — this is a practice tool, so we show the answer key. */
+  /**
+   * Result for a finished attempt. A pass earns a certificate, so the answer key
+   * (which options are correct, and the explanations that give them away) never
+   * leaves the server — otherwise a candidate could fail once, read the key, and
+   * pass on the next sitting from memory. Candidates see only their own choices
+   * and whether each question was right.
+   */
   private async resultView(attemptId: string) {
     const attempt = await this.prisma.attempt.findUniqueOrThrow({ where: { id: attemptId } });
 
     const rows = await this.prisma.attemptQuestion.findMany({
       where: { attemptId },
       orderBy: { position: "asc" },
-      include: { question: { include: { options: true } } },
+      include: { question: { select: { stem: true, options: { select: { id: true, text: true, sortOrder: true } } } } },
     });
 
     const certificate = attempt.passed
@@ -313,13 +334,12 @@ export class AssessmentService {
       certificate,
       review: rows.map((r) => ({
         stem: r.question.stem,
-        explanation: r.question.explanation,
         isCorrect: r.isCorrect,
         selectedOptionIds: r.selectedOptionIds,
         options: r.question.options
           .slice()
           .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((o) => ({ id: o.id, text: o.text, isCorrect: o.isCorrect })),
+          .map((o) => ({ id: o.id, text: o.text })),
       })),
     };
   }

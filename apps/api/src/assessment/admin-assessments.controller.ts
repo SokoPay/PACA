@@ -8,7 +8,8 @@ const statuses = ["IN_PROGRESS", "SUBMITTED", "EXPIRED", "ABANDONED", "VOIDED"] 
 
 const listQuerySchema = z.object({
   status: z.enum(statuses).optional(),
-  passed: z.coerce.boolean().optional(),
+  // Not z.coerce.boolean(): that turns the query string "false" into true.
+  passed: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });

@@ -11,7 +11,15 @@
  * then, any XSS in this admin UI could exfiltrate a session.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:4100/api/v1";
+/**
+ * In the browser this is NEXT_PUBLIC_API_URL (inlined at build time — "/api/v1"
+ * when the API sits behind the same reverse proxy as the site). Server components
+ * cannot fetch a relative URL, so on the server INTERNAL_API_URL takes precedence:
+ * the address the Next process itself can reach the API on.
+ */
+const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:4100/api/v1";
+const API_URL =
+  typeof window === "undefined" ? (process.env.INTERNAL_API_URL ?? PUBLIC_API_URL) : PUBLIC_API_URL;
 const REFRESH_KEY = "paca.refresh";
 
 let accessToken: string | null = null;
@@ -82,8 +90,23 @@ async function rawFetch(path: string, init: RequestInit = {}): Promise<Response>
   return fetch(`${API_URL}${path}`, { ...init, headers });
 }
 
-/** Refresh once on 401, then retry. A second failure means the session is gone. */
-async function refreshSession(): Promise<boolean> {
+let refreshInFlight: Promise<boolean> | null = null;
+
+/**
+ * Refresh once on 401, then retry. A second failure means the session is gone.
+ *
+ * Single-flight: a page that fires several requests at once gets several 401s
+ * together. Refresh tokens are single-use, so letting each of them rotate the
+ * same token would trip the API's reuse detection and revoke the whole session.
+ */
+function refreshSession(): Promise<boolean> {
+  refreshInFlight ??= doRefresh().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function doRefresh(): Promise<boolean> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
 
@@ -293,7 +316,7 @@ export type NextAction =
   | { kind: "APPLY"; message: string }
   | { kind: "COMPLETE_DRAFT"; message: string; applicationId: string }
   | { kind: "AWAIT_REVIEW"; message: string }
-  | { kind: "PAY"; message: string; amountUsdCents: number }
+  | { kind: "PAY"; message: string; amountUsdCents: number; chargeAmount: number | null; chargeCurrency: string | null }
   | { kind: "SIT_EXAM"; message: string }
   | { kind: "NONE"; message: string };
 
@@ -370,6 +393,62 @@ export async function viewApplicationDocument(applicationId: string, documentId:
 
 export function formatUsd(cents: number): string {
   return `$${(cents / 100).toFixed(0)}`;
+}
+
+/** Minor units of any currency, e.g. 62500 GHS -> "GHS 625.00". */
+export function formatMoney(minor: number, currency: string): string {
+  return `${currency} ${(minor / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// ---------------------------------------------------------------- payments
+
+export interface PaymentView {
+  id: string;
+  reference: string;
+  purpose: string;
+  status: "INITIALIZED" | "PENDING" | "SUCCESS" | "FAILED" | "ABANDONED" | "REFUNDED";
+  amount: number;
+  currency: string;
+  amountUsdCents: number;
+  channel: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export interface InitializedPayment {
+  reference: string;
+  accessCode: string;
+  amount: number;
+  currency: string;
+  amountUsdCents: number;
+}
+
+export function initializeMembershipPayment(): Promise<InitializedPayment> {
+  return api("/payments/membership/initialize", { method: "POST" });
+}
+
+export function verifyPayment(reference: string): Promise<PaymentView> {
+  return api(`/payments/${encodeURIComponent(reference)}/verify`, { method: "POST" });
+}
+
+export function fetchMyPayments(): Promise<PaymentView[]> {
+  return api("/payments/mine");
+}
+
+export interface AdminPaymentItem extends PaymentView {
+  user: { id: string; email: string; firstName: string; lastName: string };
+}
+
+export function fetchAdminPayments(params: { status?: string; page?: number } = {}): Promise<{
+  items: AdminPaymentItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}> {
+  const q = new URLSearchParams();
+  if (params.status) q.set("status", params.status);
+  if (params.page) q.set("page", String(params.page));
+  return api(`/admin/payments?${q.toString()}`);
 }
 
 export interface RegisterInput {
@@ -614,12 +693,12 @@ export interface AssessmentResultView {
   passed: boolean;
   passMarkBps: number;
   certificate: { id: string; credentialId: string } | null;
+  /** No answer key — only the candidate's own choices and whether each was right. */
   review: Array<{
     stem: string;
-    explanation: string | null;
-    isCorrect: boolean;
+    isCorrect: boolean | null;
     selectedOptionIds: string[];
-    options: Array<{ id: string; text: string; isCorrect: boolean }>;
+    options: Array<{ id: string; text: string }>;
   }>;
 }
 
@@ -760,5 +839,5 @@ export async function verifyCertificate(credentialId: string): Promise<VerifyRes
 }
 
 export function certificatePdfUrl(credentialId: string): string {
-  return `${API_URL}/verify/${encodeURIComponent(credentialId)}/pdf`;
+  return `${PUBLIC_API_URL}/verify/${encodeURIComponent(credentialId)}/pdf`;
 }
