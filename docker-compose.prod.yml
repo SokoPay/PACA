@@ -116,12 +116,16 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    # Defaults suit a droplet that runs only PACA. On a shared droplet, where another
+    # web server already owns 80/443, bind to loopback instead and let that server
+    # forward PACA's domain here (see deploy/nginx-paca.conf):
+    #   HTTP_BIND=127.0.0.1:8090   HTTPS_BIND=127.0.0.1:8453   SITE_ADDRESS=":80"
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_BIND:-80}:80"
+      - "${HTTPS_BIND:-443}:443"
     environment:
       # A domain name (e.g. paca-test.example.com) gets automatic HTTPS.
-      # Leave it as ":80" to serve plain HTTP on the droplet's IP.
+      # ":80" = plain HTTP (IP-only testing, or behind another TLS-terminating proxy).
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro

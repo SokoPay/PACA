@@ -1,3 +1,13 @@
+{
+	servers {
+		# When a host nginx sits in front (shared droplet), it reaches Caddy from a
+		# private Docker address. Trust the X-Forwarded-For it sends, so the API's
+		# per-IP rate limits see real visitors instead of one shared nginx address.
+		# Internet clients never come from private ranges, so they cannot spoof it.
+		trusted_proxies static private_ranges
+	}
+}
+
 {$SITE_ADDRESS} {
 	encode gzip
 
