@@ -1,0 +1,19 @@
+# Site block for a droplet whose own (host-installed) Caddy already serves other
+# sites on 80/443. Append it to /etc/caddy/Caddyfile, replacing the domain:
+#
+#   cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak-$(date +%F)
+#   sed 's/paca.example.com/YOUR.DOMAIN/' deploy/host-caddy-paca.caddy >> /etc/caddy/Caddyfile
+#   caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+#   systemctl reload caddy
+#
+# Caddy obtains the HTTPS certificate for the domain automatically. It forwards
+# X-Forwarded-For with the visitor's real IP; PACA's own Caddy trusts that header
+# from private addresses (see deploy/Caddyfile), so per-IP rate limits still work.
+
+paca.example.com {
+	# Application documents are up to 8MB; leave headroom for multipart overhead.
+	request_body {
+		max_size 10MB
+	}
+	reverse_proxy 127.0.0.1:8090
+}

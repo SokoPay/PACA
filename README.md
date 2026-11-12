@@ -209,10 +209,17 @@ the API, the web app, and Caddy as the only public entry point
 (`/api/*` goes to the API, everything else to the web app). Postgres and the API
 are never exposed directly.
 
-**Shared droplet** (other sites already serve ports 80/443 through a host nginx,
-as on the SokoPay droplet): keep the template's `HTTP_BIND="127.0.0.1:8090"`, so
-PACA listens only on the droplet itself. Then install `deploy/nginx-paca.conf` as
-an nginx site for PACA's domain and run `certbot --nginx -d <domain>` for HTTPS.
+**Shared droplet** (other sites already serve ports 80/443 through a web server
+installed on the droplet itself): keep the template's `HTTP_BIND="127.0.0.1:8090"`,
+so PACA listens only on the droplet itself, and forward PACA's domain to it from
+that server:
+
+- **Host Caddy** (the SokoPay droplet): append `deploy/host-caddy-paca.caddy` to
+  `/etc/caddy/Caddyfile` with the domain filled in, then `systemctl reload caddy`.
+  HTTPS is automatic.
+- **Host nginx**: install `deploy/nginx-paca.conf` as a site, then
+  `certbot --nginx -d <domain>`.
+
 None of PACA's other containers publish ports, so its Postgres and Redis do not
 clash with other projects' databases. Check what is already in use with
 `sudo ss -tulpn` and `docker ps --format 'table {{.Names}}\t{{.Ports}}'`.
