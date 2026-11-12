@@ -236,26 +236,10 @@ fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
 ```
 
-**3. Get the code** (private repo: read-only deploy key)
+**3. Get the code** (the repo is public, so no key is needed)
 
 ```bash
-ssh-keygen -t ed25519 -f ~/.ssh/paca_deploy -N "" -C "paca-droplet"
-cat ~/.ssh/paca_deploy.pub
-```
-
-Add the printed key on GitHub under **SokoPay/PACA → Settings → Deploy keys**
-with write access **off**. Then:
-
-```bash
-cat >> ~/.ssh/config <<'EOF'
-
-Host github-paca
-    HostName github.com
-    User git
-    IdentityFile ~/.ssh/paca_deploy
-    IdentitiesOnly yes
-EOF
-git clone github-paca:SokoPay/PACA.git /opt/paca
+git clone https://github.com/SokoPay/PACA.git /opt/paca
 ```
 
 **4. Create `.env.production`** (generates fresh secrets)
