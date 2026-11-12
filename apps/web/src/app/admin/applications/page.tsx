@@ -21,6 +21,12 @@ const STATUSES: AdminApplicationStatus[] = ["DRAFT", "SUBMITTED", "UNDER_REVIEW"
 const TIERS: MembershipTierValue[] = ["STUDENT", "PROFESSIONAL", "EXECUTIVE", "FELLOW", "RETIRED"];
 const DECIDABLE = new Set<AdminApplicationStatus>(["SUBMITTED", "UNDER_REVIEW"]);
 const PAGE_SIZE = 20;
+const SCAN_LABEL: Record<string, string> = {
+  CLEAN: "Scanned · clean",
+  PENDING: "Not scanned",
+  INFECTED: "Infected",
+  ERROR: "Scan error",
+};
 
 export default function AdminApplicationsPage() {
   const router = useRouter();
@@ -362,9 +368,9 @@ export default function AdminApplicationsPage() {
                       </button>
                       <span
                         className="text-xs"
-                        style={{ color: d.scanStatus === "CLEAN" ? "var(--text-muted)" : "#c0392b" }}
+                        style={{ color: d.scanStatus === "INFECTED" || d.scanStatus === "ERROR" ? "#c0392b" : "var(--text-muted)" }}
                       >
-                        {d.scanStatus}
+                        {SCAN_LABEL[d.scanStatus] ?? d.scanStatus}
                       </span>
                     </li>
                   ))}

@@ -27,7 +27,10 @@ const schema = z.object({
    * across API instances. Unset = in-memory counters (fine for local dev).
    */
   REDIS_URL: z.string().url().optional(),
-  /** clamd for upload scanning. Unset = uploads are stored unscanned (PENDING). */
+  /**
+   * clamd for upload virus scanning. Optional: unset = uploads are stored
+   * unscanned (PENDING). Set it to turn scanning on (e.g. on a larger server).
+   */
   CLAMAV_HOST: z.string().optional(),
   CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
 
@@ -88,9 +91,11 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     console.warn("WARNING: running in production mode with a Paystack TEST key; no real money will move.");
   }
 
-  // Production must not silently fall back to unscanned uploads.
+  // Scanning is optional (ClamAV needs ~1.5GB RAM, too much for the shared test
+  // droplet). Uploads are still type-checked by file signature; they are stored
+  // as PENDING ("Not scanned"). Say so loudly rather than silently.
   if (parsed.data.NODE_ENV === "production" && !parsed.data.CLAMAV_HOST) {
-    throw new Error("CLAMAV_HOST is required in production — uploads must be virus-scanned");
+    console.warn("WARNING: CLAMAV_HOST is not set — uploaded documents are NOT virus-scanned.");
   }
 
   cached = parsed.data;

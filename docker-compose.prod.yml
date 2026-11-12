@@ -41,14 +41,10 @@ services:
       timeout: 5s
       retries: 10
 
-  # Virus scanning for uploaded documents. Uses ~1.2-1.5 GB RAM once signatures
-  # load, and takes a few minutes on first boot to download them — uploads get a
-  # "scanning temporarily unavailable" error until it is ready.
-  clamav:
-    image: clamav/clamav:stable
-    restart: unless-stopped
-    volumes:
-      - clamav-db:/var/lib/clamav
+  # No ClamAV here: it needs ~1.5GB RAM, too much for the shared test droplet.
+  # Uploads are still type-checked; they are stored as "Not scanned". To turn
+  # scanning on (bigger server), add a `clamav/clamav:stable` service and set
+  # CLAMAV_HOST=clamav on the api.
 
   # One-shot: applies pending migrations, then exits. The API waits for it.
   migrate:
@@ -78,8 +74,6 @@ services:
       JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-30d}
       UPLOAD_DIR: /data/uploads
       REDIS_URL: redis://redis:6379
-      CLAMAV_HOST: clamav
-      CLAMAV_PORT: "3310"
       PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
       PAYSTACK_CURRENCY: ${PAYSTACK_CURRENCY:-GHS}
       PAYSTACK_USD_RATE: ${PAYSTACK_USD_RATE:-}
@@ -92,8 +86,6 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-      clamav:
-        condition: service_started
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
@@ -138,6 +130,5 @@ services:
 volumes:
   postgres-data:
   uploads:
-  clamav-db:
   caddy-data:
   caddy-config:

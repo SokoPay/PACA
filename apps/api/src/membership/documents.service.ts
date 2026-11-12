@@ -131,7 +131,7 @@ export class DocumentsService {
           sizeBytes: file.buffer.length,
           checksum,
           // Infected files never get this far. PENDING = no scanner configured
-          // (local dev only; production refuses to boot without CLAMAV_HOST).
+          // (CLAMAV_HOST unset — scanning is optional on small servers).
           scanStatus: scan.status === "CLEAN" ? "CLEAN" : "PENDING",
         },
       });

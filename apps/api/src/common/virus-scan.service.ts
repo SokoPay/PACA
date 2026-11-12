@@ -5,7 +5,7 @@ import { loadEnv } from "../config/env";
 export type ScanResult =
   | { status: "CLEAN" }
   | { status: "INFECTED"; signature: string }
-  /** No scanner configured (local dev only — production refuses to boot without one). */
+  /** No scanner configured (CLAMAV_HOST unset) — scanning is optional. */
   | { status: "NOT_SCANNED" };
 
 const CHUNK_BYTES = 64 * 1024;

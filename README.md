@@ -4,7 +4,7 @@ An npm-workspaces/Turborepo monorepo for the PACA platform: membership
 applications and review, membership payments (Paystack: card, mobile money,
 bank), the open assessment, and certificates.
 
-**Member journey:** register → apply for a tier (form + documents, virus-scanned)
+**Member journey:** register → apply for a tier (form + type-checked documents)
 → admin approves → member pays the annual fee in the Paystack popup → membership
 becomes ACTIVE until 31 December → member sits the assessment → a pass issues a
 certificate that anyone can check at `/verify/<credential-id>`.
@@ -203,69 +203,144 @@ own test card and test mobile money options. A simple test card is
 
 ## Deploying to a DigitalOcean droplet (test environment)
 
-`docker-compose.prod.yml` runs everything on one droplet: Postgres, Redis
-(rate-limit counters), ClamAV (upload virus scanning), a one-shot migration job,
-the API, the web app, and Caddy as the only public entry point
-(`/api/*` goes to the API, everything else to the web app). Postgres and the API
-are never exposed directly.
+`docker-compose.prod.yml` runs PACA as one self-contained Docker project named
+`paca`: Postgres, Redis (rate-limit counters), a one-shot migration job, the
+API, the web app, and an internal Caddy that routes `/api/*` to the API and
+everything else to the web app. Only that Caddy publishes a port. On a shared
+droplet it binds to `127.0.0.1:8090`, and the droplet's own web server forwards
+PACA's domain to it. None of PACA's other containers publish ports, so they
+cannot clash with other projects' databases or Redis.
 
-**Shared droplet** (other sites already serve ports 80/443 through a web server
-installed on the droplet itself): keep the template's `HTTP_BIND="127.0.0.1:8090"`,
-so PACA listens only on the droplet itself, and forward PACA's domain to it from
-that server:
+Upload virus scanning (ClamAV) is **off** in this stack, because it needs
+about 1.5 GB RAM. Uploads are still checked to be genuine PDF/PNG/JPEG files and
+appear to admins as "Not scanned". To turn scanning on later on a bigger server,
+add a `clamav/clamav:stable` service and set `CLAMAV_HOST` on the api.
 
-- **Host Caddy** (the SokoPay droplet): append `deploy/host-caddy-paca.caddy` to
-  `/etc/caddy/Caddyfile` with the domain filled in, then `systemctl reload caddy`.
-  HTTPS is automatic.
-- **Host nginx**: install `deploy/nginx-paca.conf` as a site, then
-  `certbot --nginx -d <domain>`.
+### Runbook: the shared SokoPay droplet (host Caddy on 80/443)
 
-None of PACA's other containers publish ports, so its Postgres and Redis do not
-clash with other projects' databases. Check what is already in use with
-`sudo ss -tulpn` and `docker ps --format 'table {{.Names}}\t{{.Ports}}'`.
+Run as root on the droplet. Replace `ukcloudlogin.com` if the domain differs.
 
-1. **Create the droplet:** Ubuntu 24.04 with **4 GB RAM**. ClamAV, which
-   virus-scans uploads, needs about 1.5 GB of that on its own. Then install Docker:
-   ```bash
-   curl -fsSL https://get.docker.com | sh
-   ufw allow OpenSSH && ufw allow 80 && ufw allow 443 && ufw --force enable
-   ```
-2. **Get the code:**
-   ```bash
-   git clone https://github.com/SokoPay/PACA.git /opt/paca && cd /opt/paca
-   ```
-3. **Configure:** copy `deploy/.env.production.example` to `.env.production`
-   in the repo root and fill it in. For HTTPS, point a domain's DNS A record at
-   the droplet, then set `SITE_ADDRESS` to the domain and `PUBLIC_URL` to
-   `https://<domain>`. For a quick IP-only test, keep `SITE_ADDRESS=":80"` and set
-   `PUBLIC_URL="http://<droplet-ip>"`. Add the Paystack test secret key and
-   rate, then set the webhook URL in the Paystack dashboard to
-   `<PUBLIC_URL>/api/v1/payments/paystack/webhook`.
-4. **Start:**
-   ```bash
-   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
-   docker compose -f docker-compose.prod.yml --env-file .env.production ps
-   curl http://localhost/api/v1/health
-   ```
-5. **Seed reference data:** tiers, topics and starter questions. Then register
-   on the site and promote your account:
-   ```bash
-   docker compose -f docker-compose.prod.yml --env-file .env.production run --rm migrate npm run db:seed
-   docker compose -f docker-compose.prod.yml --env-file .env.production run --rm migrate npm run db:promote -- you@example.com SUPERADMIN
-   ```
+**1. Check memory, ports and DNS**
 
-On first boot ClamAV spends a few minutes downloading virus signatures. Until
-it is ready, document uploads fail with "scanning temporarily unavailable".
-Check progress with `docker compose -f docker-compose.prod.yml --env-file .env.production logs -f clamav`.
+```bash
+free -h                                               # note "available"
+sudo ss -tlpn '( sport = :80 or sport = :443 or sport = :8090 )'   # caddy on 80/443, nothing on 8090
+dig +short ukcloudlogin.com; curl -4 -s ifconfig.me; echo         # the two IPs must match
+```
 
-**Updating:** `git pull`, then rerun the `up -d --build` command in step 4.
-Migrations run automatically before the API starts.
+**2. Add swap** (the one-time build needs ~1.5 GB peak; swap protects the other apps)
 
-**Logs:** `docker compose -f docker-compose.prod.yml --env-file .env.production logs -f api web`
+```bash
+swapon --show            # nothing printed = no swap yet, so:
+fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+```
 
-**Data:** the database, uploaded documents and Caddy's TLS certificates are
-stored in named Docker volumes (`postgres-data`, `uploads`, `caddy-data`), so they
-survive rebuilds. `down -v` deletes them.
+**3. Get the code** (private repo: read-only deploy key)
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/paca_deploy -N "" -C "paca-droplet"
+cat ~/.ssh/paca_deploy.pub
+```
+
+Add the printed key on GitHub under **SokoPay/PACA → Settings → Deploy keys**
+with write access **off**. Then:
+
+```bash
+cat >> ~/.ssh/config <<'EOF'
+
+Host github-paca
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/paca_deploy
+    IdentitiesOnly yes
+EOF
+git clone github-paca:SokoPay/PACA.git /opt/paca
+```
+
+**4. Create `.env.production`** (generates fresh secrets)
+
+```bash
+cd /opt/paca
+DOMAIN=ukcloudlogin.com
+cat > .env.production <<EOF
+PUBLIC_URL="https://$DOMAIN"
+SITE_ADDRESS=":80"
+HTTP_BIND="127.0.0.1:8090"
+HTTPS_BIND="127.0.0.1:8453"
+POSTGRES_PASSWORD="$(openssl rand -hex 24)"
+JWT_ACCESS_SECRET="$(openssl rand -base64 48 | tr -d '\n')"
+JWT_REFRESH_SECRET="$(openssl rand -base64 48 | tr -d '\n')"
+PAYSTACK_SECRET_KEY=""
+PAYSTACK_CURRENCY="GHS"
+PAYSTACK_USD_RATE="12.5"
+PAYSTACK_CHANNELS="card,mobile_money,bank,bank_transfer"
+ANTHROPIC_API_KEY=""
+EOF
+chmod 600 .env.production
+nano .env.production     # paste the sk_test_... key; set the cedi rate; Ctrl+O, Enter, Ctrl+X
+```
+
+Keep a copy of this file in a password manager.
+
+**5. Build and start**
+
+```bash
+echo "alias dc='docker compose -p paca -f /opt/paca/docker-compose.prod.yml --env-file /opt/paca/.env.production'" >> ~/.bashrc
+source ~/.bashrc
+cd /opt/paca && dc up -d --build          # first build ~10-20 min on this droplet
+dc ps                                     # migrate "exited (0)"; others running/healthy
+curl -s http://127.0.0.1:8090/api/v1/health; echo
+```
+
+**6. Add the domain to the host Caddy** (HTTPS is automatic)
+
+```bash
+grep -n "import" /etc/caddy/Caddyfile     # if sites are imported from a folder, put the block there instead
+cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak-$(date +%F)
+sed 's/paca.example.com/ukcloudlogin.com/' deploy/host-caddy-paca.caddy >> /etc/caddy/Caddyfile
+caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile && systemctl reload caddy
+journalctl -u caddy -n 50 --no-pager | grep -i -E "ukcloudlogin|certificate obtained|error"
+```
+
+To undo: `cp /etc/caddy/Caddyfile.bak-<date> /etc/caddy/Caddyfile && systemctl reload caddy`.
+
+**7. Seed data and create the first SUPERADMIN**
+
+```bash
+dc run --rm migrate npm run db:seed
+# register on https://ukcloudlogin.com first, then:
+dc run --rm migrate npm run db:promote -- you@example.com SUPERADMIN
+```
+
+**8. Paystack:** in the dashboard, under Settings → API Keys & Webhooks (Test),
+set the webhook URL to `https://ukcloudlogin.com/api/v1/payments/paystack/webhook`.
+
+**9. Test end to end:** register a member, apply and upload a PDF, approve it as
+admin, then pay with test card `4084 0840 8408 4081` (any future expiry, CVV
+`408`). The membership should show **Active**.
+
+**Updating:** `cd /opt/paca && git pull && dc up -d --build`. Migrations run
+automatically before the API starts.
+
+**Everyday commands:** `dc ps`, `dc logs -f api web`, `dc restart`, `dc down`
+(keeps data), `docker stats --no-stream` (memory per container).
+
+**Never on a shared droplet:**
+
+- `docker system prune -a` and `docker volume prune` can delete other projects' data.
+- `dc down -v` wipes PACA's database and uploads.
+- Changing `ufw` rules can break other apps.
+
+### Dedicated droplet (nothing else on 80/443)
+
+Delete `HTTP_BIND`/`HTTPS_BIND` from `.env.production` and set `SITE_ADDRESS`
+to the domain. PACA's Caddy then takes ports 80/443 and gets the HTTPS
+certificate itself. Skip step 6.
+
+**Data:** the database, uploaded documents and Caddy's state are stored in the
+named Docker volumes `paca_postgres-data`, `paca_uploads` and `paca_caddy-data`,
+so they survive rebuilds.
 
 ## Stopping / resetting infrastructure
 
