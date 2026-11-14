@@ -158,15 +158,17 @@ on `/verify-email`. Until they do, they cannot submit a membership application
 or pay. Codes expire after 15 minutes, allow 5 guesses, and can be resent once a
 minute.
 
-1. Create a free account at [brevo.com](https://www.brevo.com).
-2. **Senders, Domains & Dedicated IPs → Senders**: add and verify the address
-   the emails come from (for example `no-reply@pac-a.org`). Verifying the whole
-   domain (SPF/DKIM DNS records) keeps the emails out of spam.
-3. **SMTP & API → API Keys**: create a key.
-4. Set `BREVO_API_KEY`, `MAIL_FROM_EMAIL` and `MAIL_FROM_NAME`.
+Either of two Brevo connections works (an existing Brevo account can be reused):
 
-Without `BREVO_API_KEY` (local development) the code is printed in the API log.
-Brevo uses HTTPS, not SMTP, so DigitalOcean's SMTP block does not affect it.
+- **SMTP:** `SMTP_HOST=smtp-relay.brevo.com`, `SMTP_PORT=2525`, `SMTP_USER`,
+  `SMTP_PASS` from **SMTP & API → SMTP**. Port 2525 is not blocked by
+  DigitalOcean (25, 465 and 587 are).
+- **HTTP API:** `BREVO_API_KEY` from **SMTP & API → API Keys** (used if set).
+
+Set `MAIL_FROM_EMAIL` (or `SMTP_FROM`) to a sender verified under **Senders,
+Domains & Dedicated IPs**, and `MAIL_FROM_NAME` (default `PACA`). Verifying a
+whole domain (SPF/DKIM DNS records) keeps the emails out of spam. With neither
+configured (local development) the code is printed in the API log.
 
 ## Free competency test and member library
 

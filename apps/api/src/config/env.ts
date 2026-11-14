@@ -51,11 +51,16 @@ const schema = z.object({
   /** Payment methods offered in the popup; Paystack hides any the account/currency doesn't support. */
   PAYSTACK_CHANNELS: z.string().default("card,mobile_money,bank,bank_transfer"),
   /**
-   * Brevo (brevo.com) transactional email — verification codes. Unset = codes are
-   * printed to the API log instead of emailed (local development only).
+   * Email for verification codes — SMTP (e.g. Brevo's smtp-relay.brevo.com:2525)
+   * or the Brevo HTTP API key. Neither set = codes are printed to the API log
+   * instead of emailed (local development only).
    */
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(2525),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
   BREVO_API_KEY: z.string().optional(),
-  /** Must be a sender (or domain) verified in the Brevo account. */
+  /** Must be a sender (or domain) verified in the Brevo account. SMTP_FROM is accepted as an alias. */
   MAIL_FROM_EMAIL: z.string().email().optional(),
   MAIL_FROM_NAME: z.string().default("PACA"),
   ANTHROPIC_API_KEY: z.string().optional(),
@@ -71,7 +76,11 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
 
   // docker compose passes an unset `${VAR:-}` as "" — treat that as absent, not as
   // a value (z.coerce.number would otherwise read "" as 0 and fail the boot).
-  const cleaned = Object.fromEntries(Object.entries(source).filter(([, v]) => v !== ""));
+  const cleaned: Record<string, string | undefined> = Object.fromEntries(
+    Object.entries(source).filter(([, v]) => v !== ""),
+  );
+  // Accept SMTP_FROM (the name other SokoPay apps use) for MAIL_FROM_EMAIL.
+  cleaned.MAIL_FROM_EMAIL ??= cleaned.SMTP_FROM;
   const parsed = schema.safeParse(cleaned);
 
   if (!parsed.success) {
@@ -99,11 +108,12 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     console.warn("WARNING: running in production mode with a Paystack TEST key; no real money will move.");
   }
 
-  if (parsed.data.BREVO_API_KEY && !parsed.data.MAIL_FROM_EMAIL) {
-    throw new Error("MAIL_FROM_EMAIL is required when BREVO_API_KEY is set (a sender verified in Brevo)");
+  const mailConfigured = Boolean(parsed.data.BREVO_API_KEY || parsed.data.SMTP_HOST);
+  if (mailConfigured && !parsed.data.MAIL_FROM_EMAIL) {
+    throw new Error("MAIL_FROM_EMAIL (or SMTP_FROM) is required when email is configured — a sender verified in Brevo");
   }
-  if (parsed.data.NODE_ENV === "production" && !parsed.data.BREVO_API_KEY) {
-    console.warn("WARNING: BREVO_API_KEY is not set — verification codes are written to the API log, not emailed.");
+  if (parsed.data.NODE_ENV === "production" && !mailConfigured) {
+    console.warn("WARNING: no SMTP_HOST or BREVO_API_KEY — verification codes are written to the API log, not emailed.");
   }
 
   // Scanning is optional (ClamAV needs ~1.5GB RAM, too much for the shared test
