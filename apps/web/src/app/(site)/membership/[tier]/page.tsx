@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { fetchTiers, formatUsd, type TierInfo } from "@/lib/api";
+import { badgeFor } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +81,17 @@ export default async function TierPage({ params }: { params: Promise<{ tier: str
       <Link href="/membership" className="text-sm text-paca-500 hover:underline">
         &larr; All membership types
       </Link>
+
+      {badgeFor(tier.tier) && (
+        <Image
+          src={badgeFor(tier.tier)!.image}
+          alt={`${tier.displayName} badge`}
+          width={200}
+          height={169}
+          priority
+          className="mt-6 h-[169px] w-auto rounded-lg object-contain"
+        />
+      )}
 
       <div className="mt-4 flex flex-wrap items-baseline justify-between gap-4">
         <h1 className="text-3xl font-bold tracking-tight">{tier.displayName}</h1>

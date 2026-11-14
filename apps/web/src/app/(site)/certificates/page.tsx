@@ -45,7 +45,7 @@ export default function CertificatesPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
+      <main className="flex min-h-[50vh] items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
         Loading…
       </main>
     );

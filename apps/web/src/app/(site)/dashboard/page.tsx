@@ -7,7 +7,6 @@ import {
   fetchMembershipStatus,
   fetchMyPayments,
   formatMoney,
-  logout,
   restoreSession,
   type MembershipStatus,
   type PaymentView,
@@ -83,7 +82,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
+      <main className="flex min-h-[50vh] items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
         Loading…
       </main>
     );
@@ -93,40 +92,11 @@ export default function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-5 py-12">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <Link href="/" className="text-xl font-bold tracking-tight text-paca-500">
-            PACA
-          </Link>
-          <h1 className="mt-1 text-2xl font-bold">Welcome, {user?.firstName}</h1>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          {user && user.role !== "MEMBER" && (
-            <Link href="/admin/queue" className="text-paca-500 hover:underline">
-              Review queue
-            </Link>
-          )}
-          {user && (user.role === "ADMIN" || user.role === "SUPERADMIN") && (
-            <>
-              <Link href="/admin/users" className="text-paca-500 hover:underline">
-                Users
-              </Link>
-              <Link href="/admin/applications" className="text-paca-500 hover:underline">
-                Applications
-              </Link>
-            </>
-          )}
-          <button
-            onClick={async () => {
-              await logout();
-              router.replace("/login");
-            }}
-            className="hover:underline"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Sign out
-          </button>
-        </div>
+      <header>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          My dashboard
+        </p>
+        <h1 className="mt-1 text-2xl font-bold">Welcome, {user?.firstName}</h1>
       </header>
 
       {error && (

@@ -1,11 +1,15 @@
 import Link from "next/link";
+import Image, { type StaticImageData } from "next/image";
+import { HeaderAuth } from "./HeaderAuth";
+import { MobileNav } from "./MobileNav";
+import { badgeFor, PARTNERS } from "@/lib/brand";
 
 /**
  * Navigation mirrors the existing pac-a.org menu so nothing is lost in the
  * replacement: Discover PACA / Explore Courses / PACA Membership /
  * Learning Resources / Community.
  */
-const NAV: Array<{ label: string; href: string; children?: Array<{ label: string; href: string }> }> = [
+const NAV: Array<{ label: string; href: string; children?: Array<{ label: string; href: string; image?: StaticImageData }> }> = [
   {
     label: "Discover PACA",
     href: "/what-is-paca",
@@ -26,10 +30,10 @@ const NAV: Array<{ label: string; href: string; children?: Array<{ label: string
     label: "Membership",
     href: "/membership",
     children: [
-      { label: "PACA Student", href: "/membership/student" },
-      { label: "PACA Professional", href: "/membership/professional" },
-      { label: "PACA Executive", href: "/membership/executive" },
-      { label: "PACA Fellow", href: "/membership/fellow" },
+      { label: "PACA Student", href: "/membership/student", image: badgeFor("student")?.image },
+      { label: "PACA Professional", href: "/membership/professional", image: badgeFor("professional")?.image },
+      { label: "PACA Executive", href: "/membership/executive", image: badgeFor("executive")?.image },
+      { label: "PACA Fellow", href: "/membership/fellow", image: badgeFor("fellow")?.image },
       { label: "PACA Retired", href: "/membership/retired" },
     ],
   },
@@ -58,7 +62,7 @@ export function SiteHeader() {
       className="sticky top-0 z-30 border-b backdrop-blur"
       style={{ background: "color-mix(in srgb, var(--surface) 92%, transparent)", borderColor: "var(--border)" }}
     >
-      <div className="mx-auto flex max-w-6xl items-center gap-6 px-5 py-3">
+      <div className="relative mx-auto flex max-w-6xl items-center gap-6 px-5 py-3">
         <Link href="/" className="text-xl font-bold tracking-tight text-paca-500">
           PACA
         </Link>
@@ -81,8 +85,11 @@ export function SiteHeader() {
                     <Link
                       key={c.href}
                       href={c.href}
-                      className="block rounded-md px-3 py-2 text-sm transition hover:bg-paca-50 hover:text-paca-600"
+                      className="flex items-center gap-3 rounded-md px-3 py-2 text-sm transition hover:bg-paca-50 hover:text-paca-600"
                     >
+                      {c.image && (
+                        <Image src={c.image} alt="" width={40} height={34} className="h-[34px] w-10 rounded object-contain" />
+                      )}
                       {c.label}
                     </Link>
                   ))}
@@ -93,15 +100,8 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <Link href="/login" className="rounded-lg px-3 py-2 text-sm font-medium hover:text-paca-500">
-            Sign in
-          </Link>
-          <Link
-            href="/register"
-            className="rounded-lg bg-paca-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-paca-600"
-          >
-            Join PACA
-          </Link>
+          <HeaderAuth />
+          <MobileNav items={NAV.map(({ label, href, children }) => ({ label, href, children: children?.map(({ label, href }) => ({ label, href })) }))} />
         </div>
       </div>
     </header>
@@ -145,6 +145,19 @@ export function SiteFooter() {
             <li><Link href="/legal/data-protection" className="hover:text-paca-500">Data protection</Link></li>
             <li><Link href="/legal/data-usage" className="hover:text-paca-500">Data usage</Link></li>
           </ul>
+        </div>
+      </div>
+
+      <div className="border-t" style={{ borderColor: "var(--border)" }}>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-4 px-5 py-6">
+          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+            Our partners
+          </span>
+          {PARTNERS.map((p) => (
+            <a key={p.name} href={p.url} target="_blank" rel="noreferrer" title={p.name} className="opacity-80 transition hover:opacity-100">
+              <Image src={p.small} alt={p.name} height={32} className="h-8 w-auto rounded bg-white object-contain" />
+            </a>
+          ))}
         </div>
       </div>
 

@@ -176,7 +176,7 @@ export default function ApplyPage({ params }: { params: Promise<{ tier: string }
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
+      <main className="flex min-h-[50vh] items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
         Loading…
       </main>
     );

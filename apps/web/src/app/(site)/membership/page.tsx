@@ -1,5 +1,7 @@
 import Link from "next/link";
+import Image from "next/image";
 import { fetchTiers, formatUsd, type TierInfo } from "@/lib/api";
+import { badgeFor } from "@/lib/brand";
 
 export const metadata = {
   title: "PACA Membership",
@@ -45,6 +47,15 @@ export default async function MembershipPage() {
             className="flex flex-col rounded-xl border p-6"
             style={{ borderColor: "var(--border)", background: "var(--surface)" }}
           >
+            {badgeFor(t.tier) && (
+              <Image
+                src={badgeFor(t.tier)!.image}
+                alt={`${t.displayName} badge`}
+                width={140}
+                height={118}
+                className="mb-4 h-[118px] w-auto self-center rounded-lg object-contain"
+              />
+            )}
             <h2 className="text-lg font-semibold">{t.displayName}</h2>
             <div className="mt-1 flex items-baseline gap-1">
               <span className="text-3xl font-bold text-paca-500">{formatUsd(t.priceUsdCents)}</span>

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import Image from "next/image";
 import { fetchTiers, formatUsd, type TierInfo } from "@/lib/api";
+import { BADGES, PARTNERS } from "@/lib/brand";
 
 export const metadata = {
   title: "PACA — Professional Agile Certification, Africa",
@@ -48,6 +50,44 @@ export default async function HomePage() {
           >
             Try the free assessment
           </Link>
+        </div>
+      </section>
+
+      {/* certification badges */}
+      <section className="border-t" style={{ borderColor: "var(--border)" }}>
+        <div className="mx-auto max-w-6xl px-5 py-16">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold uppercase tracking-widest text-paca-500">Certification badges</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">A badge for every stage of your Agile career</h2>
+            <p className="mt-3 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              Earn your PACA badge, show it on LinkedIn and your CV, and let employers verify it online with your
+              credential ID.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {BADGES.map((b) => (
+              <Link
+                key={b.tier}
+                href={`/membership/${b.slug}`}
+                className="group flex flex-col items-center rounded-2xl border p-6 text-center transition hover:-translate-y-1 hover:border-paca-500 hover:shadow-lg"
+                style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+              >
+                <Image
+                  src={b.image}
+                  alt={`${b.name} badge`}
+                  width={180}
+                  height={152}
+                  className="h-[152px] w-auto rounded-lg object-contain transition group-hover:scale-105"
+                />
+                <h3 className="mt-4 font-semibold">{b.name}</h3>
+                <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  {b.summary}
+                </p>
+                <span className="mt-auto pt-4 text-sm font-semibold text-paca-500">How to earn it &rarr;</span>
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -117,6 +157,33 @@ export default async function HomePage() {
             Membership details are temporarily unavailable. Please try again shortly.
           </p>
         )}
+      </section>
+
+      {/* partners */}
+      <section className="border-t" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+        <div className="mx-auto max-w-6xl px-5 py-14 text-center">
+          <h2 className="text-2xl font-bold tracking-tight">Our partners</h2>
+          <p className="mx-auto mt-2 max-w-xl text-sm" style={{ color: "var(--text-muted)" }}>
+            We work with leading Agile organisations on training, standards and member benefits.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-6">
+            {PARTNERS.map((p) => (
+              <a
+                key={p.name}
+                href={p.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-32 w-44 items-center justify-center rounded-xl border bg-white p-3 transition hover:border-paca-500 hover:shadow-md"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <Image src={p.logo} alt={p.name} className="max-h-full w-auto object-contain" />
+              </a>
+            ))}
+          </div>
+          <Link href="/partners" className="mt-6 inline-block text-sm font-semibold text-paca-500 hover:underline">
+            About our partners &rarr;
+          </Link>
+        </div>
       </section>
     </main>
   );

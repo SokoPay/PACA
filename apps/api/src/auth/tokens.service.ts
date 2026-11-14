@@ -5,6 +5,9 @@ import type { UserRole } from "@prisma/client";
 import { PrismaService } from "../common/prisma.service";
 import { loadEnv } from "../config/env";
 
+/** See rotate(): a reuse this soon after rotation is a client race, not theft. */
+const REUSE_GRACE_MS = 20_000;
+
 export interface AccessTokenPayload {
   sub: string;
   email: string;
@@ -91,6 +94,13 @@ export class TokensService {
 
     if (!existing) throw new UnauthorizedException("Invalid refresh token");
 
+    // Grace window: two tabs (or a double-fired request) refreshing the same token
+    // within seconds is the browser racing itself, not theft. Refuse the late one
+    // without revoking the family — the client re-reads the successor and retries.
+    if (existing.revokedAt && Date.now() - existing.revokedAt.getTime() < REUSE_GRACE_MS) {
+      throw new UnauthorizedException("Refresh token already rotated");
+    }
+
     if (existing.revokedAt) {
       this.logger.warn(
         `Refresh token reuse detected for user=${existing.userId} family=${existing.family}; revoking family`,
@@ -118,7 +128,7 @@ export class TokensService {
       data: { revokedAt: new Date() },
     });
     if (claimed.count === 0) {
-      throw new UnauthorizedException("Refresh token already used");
+      throw new UnauthorizedException("Refresh token already rotated");
     }
 
     return this.issuePair(existing.user, context, existing.family);

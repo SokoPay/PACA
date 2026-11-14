@@ -1,4 +1,6 @@
+import Image from "next/image";
 import { fetchPartners } from "@/lib/api";
+import { PARTNERS } from "@/lib/brand";
 
 export const metadata = {
   title: "Partners",
@@ -6,20 +8,40 @@ export const metadata = {
 };
 
 export default async function PartnersPage() {
-  const partners = await fetchPartners().catch(() => []);
+  const known = new Set(PARTNERS.map((p) => p.name.toLowerCase()));
+  // Partners added in the database that don't have a logo here are listed below the logo cards.
+  const partners = (await fetchPartners().catch(() => [])).filter((p) => !known.has(p.name.toLowerCase()));
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-16">
+    <main className="mx-auto max-w-5xl px-5 py-16">
       <h1 className="text-3xl font-bold tracking-tight">Partners</h1>
       <p className="mt-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>
         Organisations PACA works with on training, tooling and member discounts.
       </p>
 
-      {partners.length === 0 ? (
-        <p className="mt-10 text-sm" style={{ color: "var(--text-muted)" }}>
-          No partners are listed yet.
-        </p>
-      ) : (
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {PARTNERS.map((p) => (
+          <a
+            key={p.name}
+            href={p.url}
+            target="_blank"
+            rel="noreferrer"
+            className="flex flex-col rounded-xl border p-5 transition hover:border-paca-500 hover:shadow-md"
+            style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+          >
+            <div className="flex h-28 items-center justify-center rounded-lg bg-white p-3">
+              <Image src={p.logo} alt={p.name} className="max-h-full w-auto object-contain" />
+            </div>
+            <h2 className="mt-4 font-semibold">{p.name}</h2>
+            <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              {p.description}
+            </p>
+            <span className="mt-3 text-sm text-paca-500">Visit website &rarr;</span>
+          </a>
+        ))}
+      </div>
+
+      {partners.length > 0 && (
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           {partners.map((p) => (
             <div key={p.id} className="rounded-xl border p-5" style={{ borderColor: "var(--border)" }}>

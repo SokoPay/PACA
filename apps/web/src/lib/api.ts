@@ -46,10 +46,13 @@ export class ApiError extends Error {
   }
 }
 
+// The refresh token lives in localStorage so a member stays signed in across
+// pages, tabs and browser restarts until they sign out (or it expires, 30 days).
 function setRefreshToken(token: string | null): void {
   try {
-    if (token) sessionStorage.setItem(REFRESH_KEY, token);
-    else sessionStorage.removeItem(REFRESH_KEY);
+    if (token) localStorage.setItem(REFRESH_KEY, token);
+    else localStorage.removeItem(REFRESH_KEY);
+    sessionStorage.removeItem(REFRESH_KEY); // pre-localStorage location
   } catch {
     // Private browsing or blocked storage — the session simply won't survive reload.
   }
@@ -57,10 +60,46 @@ function setRefreshToken(token: string | null): void {
 
 function getRefreshToken(): string | null {
   try {
-    return sessionStorage.getItem(REFRESH_KEY);
+    return localStorage.getItem(REFRESH_KEY) ?? sessionStorage.getItem(REFRESH_KEY);
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------- shared session state
+// One signed-in user for the whole app, so the site header, dashboard and every
+// other page agree on who is logged in. `undefined` = not checked yet.
+
+let currentUser: SessionUser | null | undefined;
+const listeners = new Set<(u: SessionUser | null | undefined) => void>();
+
+function setCurrentUser(user: SessionUser | null): void {
+  currentUser = user;
+  for (const fn of listeners) fn(user);
+}
+
+export function getCurrentUser(): SessionUser | null | undefined {
+  return currentUser;
+}
+
+export function subscribeSession(fn: (u: SessionUser | null | undefined) => void): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+/** Merge fields into the signed-in user (e.g. after verifying the email address). */
+export function patchCurrentUser(patch: Partial<SessionUser>): void {
+  if (currentUser) setCurrentUser({ ...currentUser, ...patch });
+}
+
+if (typeof window !== "undefined") {
+  // Signing out in one tab signs out the others.
+  window.addEventListener("storage", (e) => {
+    if (e.key === REFRESH_KEY && !e.newValue) {
+      accessToken = null;
+      setCurrentUser(null);
+    }
+  });
 }
 
 export function hasSession(): boolean {
@@ -107,7 +146,7 @@ function refreshSession(): Promise<boolean> {
   return refreshInFlight;
 }
 
-async function doRefresh(): Promise<boolean> {
+async function doRefresh(retried = false): Promise<boolean> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
 
@@ -118,8 +157,12 @@ async function doRefresh(): Promise<boolean> {
   });
 
   if (!res.ok) {
+    // Another tab may have rotated the shared token a moment ago — use its successor.
+    const latest = getRefreshToken();
+    if (!retried && latest && latest !== refreshToken) return doRefresh(true);
     accessToken = null;
-    setRefreshToken(null);
+    if (res.status === 401) setRefreshToken(null);
+    setCurrentUser(null);
     return false;
   }
 
@@ -153,6 +196,7 @@ export async function login(email: string, password: string): Promise<SessionUse
   const data = await res.json();
   accessToken = data.accessToken;
   setRefreshToken(data.refreshToken);
+  setCurrentUser(data.user as SessionUser);
   return data.user as SessionUser;
 }
 
@@ -160,6 +204,7 @@ export async function logout(): Promise<void> {
   const refreshToken = getRefreshToken();
   accessToken = null;
   setRefreshToken(null);
+  setCurrentUser(null);
   if (!refreshToken) return;
   try {
     await fetch(`${API_URL}/auth/logout`, {
@@ -172,13 +217,37 @@ export async function logout(): Promise<void> {
   }
 }
 
-/** Restore a session on page load. Returns null if there is nothing to restore. */
-export async function restoreSession(): Promise<SessionUser | null> {
-  if (!getRefreshToken()) return null;
-  if (!(await refreshSession())) return null;
+let restoreInFlight: Promise<SessionUser | null> | null = null;
+
+/**
+ * The signed-in user, or null. Cheap to call from every page: once the session is
+ * known it is returned from memory, and concurrent callers share one request.
+ */
+export function restoreSession(): Promise<SessionUser | null> {
+  if (currentUser && accessToken) return Promise.resolve(currentUser);
+  restoreInFlight ??= doRestore().finally(() => {
+    restoreInFlight = null;
+  });
+  return restoreInFlight;
+}
+
+async function doRestore(): Promise<SessionUser | null> {
+  if (!accessToken) {
+    if (!getRefreshToken()) {
+      setCurrentUser(null);
+      return null;
+    }
+    if (!(await refreshSession())) {
+      setCurrentUser(null);
+      return null;
+    }
+  }
   try {
-    return await api<SessionUser>("/auth/me");
+    const me = await api<SessionUser>("/auth/me");
+    setCurrentUser(me);
+    return me;
   } catch {
+    setCurrentUser(null);
     return null;
   }
 }
@@ -851,8 +920,10 @@ export function certificatePdfUrl(credentialId: string): string {
 
 // ---------------------------------------------------------------- email verification
 
-export function verifyEmail(code: string): Promise<{ verified: true }> {
-  return api("/auth/verify-email", { method: "POST", body: JSON.stringify({ code }) });
+export async function verifyEmail(code: string): Promise<{ verified: true }> {
+  const result = await api<{ verified: true }>("/auth/verify-email", { method: "POST", body: JSON.stringify({ code }) });
+  patchCurrentUser({ emailVerifiedAt: new Date().toISOString(), status: "ACTIVE" });
+  return result;
 }
 
 export function resendVerificationCode(): Promise<{ sentTo: string }> {
