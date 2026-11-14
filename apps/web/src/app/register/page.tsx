@@ -4,12 +4,14 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError, login, register } from "@/lib/api";
+import { PasswordInput } from "@/components/PasswordInput";
+import { PhoneInput } from "@/components/PhoneInput";
 
 function RegisterForm() {
   const router = useRouter();
   const next = useSearchParams().get("next");
 
-  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", password: "" });
+  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", password: "", confirmPassword: "" });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +27,10 @@ function RegisterForm() {
     setError(null);
     setFieldErrors({});
 
+    if (form.password !== form.confirmPassword) {
+      setFieldErrors({ confirmPassword: "The two passwords do not match" });
+      return;
+    }
     if (!acceptedTerms) {
       setFieldErrors({ acceptedTerms: "You must accept the Terms and Privacy Policy to register" });
       return;
@@ -45,7 +51,8 @@ function RegisterForm() {
       // Sign the new member straight in — an extra login step here loses people.
       await login(form.email.trim(), form.password);
       const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
-      router.push(safeNext ?? "/dashboard");
+      // A 6-digit code is on its way to their inbox — confirm it before anything else.
+      router.push(`/verify-email${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""}`);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -103,18 +110,39 @@ function RegisterForm() {
           <label htmlFor="phone" className="mb-1 block text-sm font-medium">
             Phone <span style={{ color: "var(--text-muted)" }}>(optional)</span>
           </label>
-          <input id="phone" type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} className={input} style={inputStyle} />
+          <PhoneInput id="phone" onChange={(v) => set("phone", v)} />
+          {fieldErrors.phone && <p className="mt-1 text-xs" style={{ color: "#c0392b" }}>{fieldErrors.phone}</p>}
         </div>
 
         <div>
           <label htmlFor="password" className="mb-1 block text-sm font-medium">
             Password
           </label>
-          <input id="password" type="password" required autoComplete="new-password" minLength={12} value={form.password} onChange={(e) => set("password", e.target.value)} className={input} style={inputStyle} />
+          <PasswordInput id="password" required autoComplete="new-password" minLength={12} value={form.password} onChange={(e) => set("password", e.target.value)} />
           <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
             At least 12 characters. Length matters more than symbols.
           </p>
           {fieldErrors.password && <p className="mt-1 text-xs" style={{ color: "#c0392b" }}>{fieldErrors.password}</p>}
+        </div>
+
+        <div>
+          <label htmlFor="confirmPassword" className="mb-1 block text-sm font-medium">
+            Confirm password
+          </label>
+          <PasswordInput
+            id="confirmPassword"
+            required
+            autoComplete="new-password"
+            minLength={12}
+            value={form.confirmPassword}
+            onChange={(e) => set("confirmPassword", e.target.value)}
+          />
+          {form.confirmPassword && form.confirmPassword !== form.password && !fieldErrors.confirmPassword && (
+            <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>Passwords do not match yet.</p>
+          )}
+          {fieldErrors.confirmPassword && (
+            <p className="mt-1 text-xs" style={{ color: "#c0392b" }}>{fieldErrors.confirmPassword}</p>
+          )}
         </div>
 
         {/*

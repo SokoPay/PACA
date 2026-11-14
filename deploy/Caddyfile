@@ -12,7 +12,13 @@
 	encode gzip
 
 	# Application documents are capped at 8MB by the API; leave headroom for multipart.
-	request_body {
+	# Member-library books (admin upload only) are allowed up to 50MB.
+	@library_upload path /api/v1/admin/library /api/v1/admin/library/*
+	request_body @library_upload {
+		max_size 55MB
+	}
+	@other_uploads not path /api/v1/admin/library /api/v1/admin/library/*
+	request_body @other_uploads {
 		max_size 10MB
 	}
 

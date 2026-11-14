@@ -11,9 +11,9 @@
 # from private addresses (see deploy/Caddyfile), so per-IP rate limits still work.
 
 paca.example.com {
-	# Application documents are up to 8MB; leave headroom for multipart overhead.
+	# Library books are up to 50MB. PACA's own Caddy keeps every other path at 10MB.
 	request_body {
-		max_size 10MB
+		max_size 60MB
 	}
 	reverse_proxy 127.0.0.1:8090
 }

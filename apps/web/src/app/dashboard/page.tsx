@@ -71,6 +71,10 @@ export default function DashboardPage() {
         router.replace("/login?next=/dashboard");
         return;
       }
+      if (session.role === "MEMBER" && !session.emailVerifiedAt) {
+        router.replace("/verify-email?next=/dashboard");
+        return;
+      }
       setUser(session);
       await loadStatus();
       setLoading(false);
@@ -258,14 +262,53 @@ export default function DashboardPage() {
         </section>
       </div>
 
+      {/* Free for every registered member — paid or not. */}
+      <div className="mt-8 grid gap-5 sm:grid-cols-2">
+        <section className="flex flex-col rounded-xl border p-5" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-paca-500">Free</p>
+          <h2 className="mt-1 font-semibold">Competency test</h2>
+          <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            20 questions, 30 minutes. See your Agile competency level and which topics to study. No payment needed.
+          </p>
+          <div className="mt-auto pt-4">
+            <Link
+              href="/assessment"
+              className="inline-block rounded-lg bg-paca-500 px-5 py-2 text-sm font-semibold text-white hover:bg-paca-600"
+            >
+              Take the free test
+            </Link>
+          </div>
+        </section>
+
+        <section className="flex flex-col rounded-xl border p-5" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+            {status?.membership?.status === "ACTIVE" ? "Unlocked" : "\u{1F512} After payment"}
+          </p>
+          <h2 className="mt-1 font-semibold">Member library</h2>
+          <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            PDF study books for your membership type, to read before the certification exam.
+          </p>
+          <div className="mt-auto pt-4">
+            <Link
+              href="/dashboard/library"
+              className="inline-block rounded-lg border px-5 py-2 text-sm font-semibold text-paca-500 hover:bg-paca-50"
+              style={{ borderColor: "var(--color-paca-500)" }}
+            >
+              {status?.membership?.status === "ACTIVE" ? "Open the library" : "See what\u2019s included"}
+            </Link>
+          </div>
+        </section>
+      </div>
+
       {/* Benefits, greyed until payment clears. */}
       <section className="mt-8">
         <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
           Your benefits
         </h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {[
             ["Certification exam", "Sit the assessment and earn your certificate"],
+            ["Study library", "PDF books for your membership type"],
             ["Digital certificate", "Emailed to you on passing"],
             ["Member badge", "Share on LinkedIn and other networks"],
             ["Partner discounts", "Discount codes on partner courses"],

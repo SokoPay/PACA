@@ -50,6 +50,14 @@ const schema = z.object({
   PAYSTACK_USD_RATE: z.coerce.number().positive().optional(),
   /** Payment methods offered in the popup; Paystack hides any the account/currency doesn't support. */
   PAYSTACK_CHANNELS: z.string().default("card,mobile_money,bank,bank_transfer"),
+  /**
+   * Brevo (brevo.com) transactional email — verification codes. Unset = codes are
+   * printed to the API log instead of emailed (local development only).
+   */
+  BREVO_API_KEY: z.string().optional(),
+  /** Must be a sender (or domain) verified in the Brevo account. */
+  MAIL_FROM_EMAIL: z.string().email().optional(),
+  MAIL_FROM_NAME: z.string().default("PACA"),
   ANTHROPIC_API_KEY: z.string().optional(),
   AI_MODEL: z.string().default("claude-sonnet-5"),
 });
@@ -89,6 +97,13 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (parsed.data.NODE_ENV === "production" && parsed.data.PAYSTACK_SECRET_KEY?.startsWith("sk_test_")) {
     // Allowed — the droplet is a test environment — but make it impossible to miss.
     console.warn("WARNING: running in production mode with a Paystack TEST key; no real money will move.");
+  }
+
+  if (parsed.data.BREVO_API_KEY && !parsed.data.MAIL_FROM_EMAIL) {
+    throw new Error("MAIL_FROM_EMAIL is required when BREVO_API_KEY is set (a sender verified in Brevo)");
+  }
+  if (parsed.data.NODE_ENV === "production" && !parsed.data.BREVO_API_KEY) {
+    console.warn("WARNING: BREVO_API_KEY is not set — verification codes are written to the API log, not emailed.");
   }
 
   // Scanning is optional (ClamAV needs ~1.5GB RAM, too much for the shared test

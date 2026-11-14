@@ -5,6 +5,7 @@ import { AuditService } from "../common/audit.service";
 import { requiredDocuments, schemaForTier, TIER_FORMS } from "./tier-forms";
 import { loadEnv } from "../config/env";
 import type { AuthenticatedUser } from "../common/guards/jwt-auth.guard";
+import { requireVerifiedEmail } from "../common/require-verified-email";
 
 export interface RequestContext {
   ipAddress?: string | null;
@@ -138,6 +139,7 @@ export class ApplicationsService {
     if (!EDITABLE.has(application.status)) {
       throw new BadRequestException(`An application with status ${application.status} cannot be submitted`);
     }
+    await requireVerifiedEmail(this.prisma, user.id);
 
     const parsed = schemaForTier(application.tier).safeParse(application.answers);
     if (!parsed.success) {

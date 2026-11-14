@@ -78,6 +78,9 @@ services:
       PAYSTACK_CURRENCY: ${PAYSTACK_CURRENCY:-GHS}
       PAYSTACK_USD_RATE: ${PAYSTACK_USD_RATE:-}
       PAYSTACK_CHANNELS: ${PAYSTACK_CHANNELS:-card,mobile_money,bank,bank_transfer}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-PACA}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       - uploads:/data/uploads

@@ -149,6 +149,36 @@ npm run db:promote -- you@example.com SUPERADMIN
 ```
 
 After that, a SUPERADMIN can change other users' roles from the admin UI.
+Promoting also marks the account's email as verified.
+
+## Email verification (Brevo)
+
+New members get a 6-digit code by email right after registering and enter it
+on `/verify-email`. Until they do, they cannot submit a membership application
+or pay. Codes expire after 15 minutes, allow 5 guesses, and can be resent once a
+minute.
+
+1. Create a free account at [brevo.com](https://www.brevo.com).
+2. **Senders, Domains & Dedicated IPs → Senders**: add and verify the address
+   the emails come from (for example `no-reply@pac-a.org`). Verifying the whole
+   domain (SPF/DKIM DNS records) keeps the emails out of spam.
+3. **SMTP & API → API Keys**: create a key.
+4. Set `BREVO_API_KEY`, `MAIL_FROM_EMAIL` and `MAIL_FROM_NAME`.
+
+Without `BREVO_API_KEY` (local development) the code is printed in the API log.
+Brevo uses HTTPS, not SMTP, so DigitalOcean's SMTP block does not affect it.
+
+## Free competency test and member library
+
+- **Free competency test** (`/assessment`): any registered member, paid or not.
+  20 questions in 30 minutes. The result gives a competency level (Foundation,
+  Developing, Proficient, Advanced) and a score per topic.
+- **Member library** (`/dashboard/library`): PDF study books. Admins upload them
+  at **Admin → Member library** (up to 50MB each) and choose which membership
+  types each book is for (no type selected means all members). Only members with
+  an **active, paid** membership can open them, and only the books for their
+  type. Unpaid members see the titles as locked. Files are stored under
+  `UPLOAD_DIR/library` (the `paca_uploads` volume on the droplet).
 
 ## Payments (Paystack)
 

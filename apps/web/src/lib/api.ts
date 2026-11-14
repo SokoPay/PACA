@@ -31,6 +31,7 @@ export interface SessionUser {
   lastName: string;
   role: "MEMBER" | "REVIEWER" | "ADMIN" | "SUPERADMIN";
   status: string;
+  emailVerifiedAt?: string | null;
 }
 
 export class ApiError extends Error {
@@ -625,6 +626,8 @@ export interface ResourceListItem {
   kind: string;
   externalUrl: string | null;
   minTier: string | null;
+  tiers: MembershipTierValue[];
+  memberOnly: boolean;
   topic: { name: string } | null;
 }
 
@@ -693,6 +696,10 @@ export interface AssessmentResultView {
   passed: boolean;
   passMarkBps: number;
   certificate: { id: string; credentialId: string } | null;
+  /** Advisory competency band for the free test. */
+  competency: { level: "Foundation" | "Developing" | "Proficient" | "Advanced"; advice: string };
+  /** Weakest topics first. */
+  topics: Array<{ topic: string; correct: number; total: number }>;
   /** No answer key — only the candidate's own choices and whether each was right. */
   review: Array<{
     stem: string;
@@ -840,4 +847,102 @@ export async function verifyCertificate(credentialId: string): Promise<VerifyRes
 
 export function certificatePdfUrl(credentialId: string): string {
   return `${PUBLIC_API_URL}/verify/${encodeURIComponent(credentialId)}/pdf`;
+}
+
+// ---------------------------------------------------------------- email verification
+
+export function verifyEmail(code: string): Promise<{ verified: true }> {
+  return api("/auth/verify-email", { method: "POST", body: JSON.stringify({ code }) });
+}
+
+export function resendVerificationCode(): Promise<{ sentTo: string }> {
+  return api("/auth/verify-email/resend", { method: "POST", body: JSON.stringify({}) });
+}
+
+// ---------------------------------------------------------------- member library
+
+export const TIER_LABEL: Record<MembershipTierValue, string> = {
+  STUDENT: "Student",
+  PROFESSIONAL: "Professional",
+  EXECUTIVE: "Executive",
+  FELLOW: "Fellow",
+  RETIRED: "Retired",
+};
+
+export interface LibraryBook {
+  id: string;
+  title: string;
+  description: string | null;
+  tiers: MembershipTierValue[];
+  fileName: string | null;
+  fileSizeBytes: number | null;
+  publishedAt: string | null;
+  locked: boolean;
+}
+
+export function fetchMemberLibrary(): Promise<{ unlocked: boolean; tier: MembershipTierValue | null; items: LibraryBook[] }> {
+  return api("/library");
+}
+
+/** Fetches the PDF with the auth header and opens it in a new tab to read. */
+export async function openLibraryBook(id: string): Promise<void> {
+  // Open the tab synchronously (inside the click) so popup blockers allow it.
+  const tab = window.open("", "_blank");
+  try {
+    let res = await rawFetch(`/library/${id}/file`);
+    if (res.status === 401 && getRefreshToken()) {
+      if (await refreshSession()) res = await rawFetch(`/library/${id}/file`);
+    }
+    if (!res.ok) throw await parseError(res);
+    const url = URL.createObjectURL(await res.blob());
+    if (tab) tab.location.href = url;
+    else window.open(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(url), 10 * 60_000);
+  } catch (err) {
+    tab?.close();
+    throw err;
+  }
+}
+
+export interface AdminLibraryBook {
+  id: string;
+  title: string;
+  description: string | null;
+  tiers: MembershipTierValue[];
+  fileName: string | null;
+  fileSizeBytes: number | null;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  publishedAt: string | null;
+  downloadCount: number;
+  createdAt: string;
+}
+
+export function fetchAdminLibrary(): Promise<AdminLibraryBook[]> {
+  return api("/admin/library");
+}
+
+export function uploadLibraryBook(input: {
+  title: string;
+  description: string;
+  tiers: MembershipTierValue[];
+  file: File;
+}): Promise<AdminLibraryBook> {
+  const form = new FormData();
+  // Text fields first: the API reads them from the parts that precede the file.
+  form.append("title", input.title);
+  form.append("description", input.description);
+  form.append("tiers", input.tiers.join(","));
+  form.append("file", input.file);
+  return api("/admin/library", { method: "POST", body: form });
+}
+
+export function updateLibraryBook(
+  id: string,
+  patch: { title?: string; description?: string | null; tiers?: MembershipTierValue[]; published?: boolean },
+): Promise<AdminLibraryBook> {
+  return api(`/admin/library/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export function deleteLibraryBook(id: string): Promise<void> {
+  return api(`/admin/library/${id}`, { method: "DELETE" });
 }

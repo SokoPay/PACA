@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Post, Req, UnauthorizedException } fro
 import { RouteConfig } from "@nestjs/platform-fastify";
 import { z } from "zod";
 import { AuthService } from "./auth.service";
+import { EmailVerificationService } from "./email-verification.service";
 import { Public } from "../common/decorators/public.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -22,7 +23,12 @@ const registerSchema = z.object({
   password: passwordSchema,
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
-  phone: z.string().max(40).optional(),
+  // E.164 with the country code, e.g. +233241234567 (the form's country picker builds it).
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+[1-9]\d{6,14}$/, "Enter a valid phone number including the country code")
+    .optional(),
   acceptedTerms: z.literal(true, {
     errorMap: () => ({ message: "You must accept the Terms and Privacy Policy to register" }),
   }),
@@ -37,6 +43,8 @@ const loginSchema = z.object({
 
 const refreshSchema = z.object({ refreshToken: z.string().min(1) });
 
+const verifyEmailSchema = z.object({ code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code") });
+
 /**
  * Per-IP limits for the unauthenticated credential endpoints, far tighter than
  * the global 300/min. Account lockout alone stops guessing against one account
@@ -45,10 +53,15 @@ const refreshSchema = z.object({ refreshToken: z.string().min(1) });
  */
 const STRICT_LIMIT = { rateLimit: { max: 10, timeWindow: "1 minute" } };
 const REFRESH_LIMIT = { rateLimit: { max: 30, timeWindow: "1 minute" } };
+const VERIFY_LIMIT = { rateLimit: { max: 10, timeWindow: "1 minute" } };
+const RESEND_LIMIT = { rateLimit: { max: 3, timeWindow: "1 minute" } };
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly verification: EmailVerificationService,
+  ) {}
 
   @Public()
   @RouteConfig(STRICT_LIMIT)
@@ -87,6 +100,24 @@ export class AuthController {
   @HttpCode(204)
   async logout(@Body(new ZodValidationPipe(refreshSchema)) body: z.infer<typeof refreshSchema>) {
     await this.auth.logout(body.refreshToken);
+  }
+
+  @RouteConfig(VERIFY_LIMIT)
+  @Post("verify-email")
+  @HttpCode(200)
+  verifyEmail(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(verifyEmailSchema)) body: z.infer<typeof verifyEmailSchema>,
+    @Req() req: { ip?: string; headers: Record<string, string | undefined> },
+  ) {
+    return this.verification.verify(user.id, body.code, context(req));
+  }
+
+  @RouteConfig(RESEND_LIMIT)
+  @Post("verify-email/resend")
+  @HttpCode(200)
+  resendVerification(@CurrentUser() user: AuthenticatedUser) {
+    return this.verification.issue(user.id, { enforceCooldown: true });
   }
 
   @Get("me")

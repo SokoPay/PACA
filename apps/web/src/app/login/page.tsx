@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { login, ApiError } from "@/lib/api";
+import { PasswordInput } from "@/components/PasswordInput";
 
 function LoginForm() {
   const router = useRouter();
@@ -25,6 +26,10 @@ function LoginForm() {
       // Only ever follow a same-site path, never an absolute URL — an open
       // redirect here would be a ready-made phishing vector.
       const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+      if (user.role === "MEMBER" && !user.emailVerifiedAt) {
+        router.push(`/verify-email${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""}`);
+        return;
+      }
       router.push(safeNext ?? (user.role === "MEMBER" ? "/dashboard" : "/admin/queue"));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not sign in. Please try again.");
@@ -68,15 +73,12 @@ function LoginForm() {
           <label htmlFor="password" className="mb-1 block text-sm font-medium">
             Password
           </label>
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             required
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-paca-500"
-            style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
           />
         </div>
 

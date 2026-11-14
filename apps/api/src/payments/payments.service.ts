@@ -5,6 +5,7 @@ import { PrismaService } from "../common/prisma.service";
 import { AuditService } from "../common/audit.service";
 import { loadEnv } from "../config/env";
 import { PaystackClient, type VerifiedTransaction } from "./paystack.client";
+import { requireVerifiedEmail } from "../common/require-verified-email";
 
 export interface RequestContext {
   ipAddress?: string | null;
@@ -36,6 +37,7 @@ export class PaymentsService {
    * Returns the access code the Paystack popup needs; nothing else secret.
    */
   async initializeMembershipPayment(userId: string, ctx: RequestContext) {
+    await requireVerifiedEmail(this.prisma, userId);
     const membership = await this.prisma.membership.findUnique({
       where: { userId },
       include: { user: { select: { email: true } } },

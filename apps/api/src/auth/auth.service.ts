@@ -3,6 +3,7 @@ import { PrismaService } from "../common/prisma.service";
 import { AuditService } from "../common/audit.service";
 import { PasswordService } from "./password.service";
 import { TokensService, type TokenPair } from "./tokens.service";
+import { EmailVerificationService } from "./email-verification.service";
 
 export interface RegisterInput {
   email: string;
@@ -30,6 +31,7 @@ export class AuthService {
     private readonly passwords: PasswordService,
     private readonly tokens: TokensService,
     private readonly audit: AuditService,
+    private readonly verification: EmailVerificationService,
   ) {}
 
   async register(input: RegisterInput, ctx: RequestContext) {
@@ -77,6 +79,8 @@ export class AuthService {
       userAgent: ctx.userAgent,
     });
 
+    await this.verification.issueAfterRegistration(user.id);
+
     return user;
   }
 
@@ -112,6 +116,7 @@ export class AuthService {
         passwordHash: true,
         firstName: true,
         lastName: true,
+        emailVerifiedAt: true,
         deletedAt: true,
         failedLoginCount: true,
         lockedUntil: true,
@@ -175,6 +180,7 @@ export class AuthService {
         lastName: user.lastName,
         role: user.role,
         status: user.status,
+        emailVerifiedAt: user.emailVerifiedAt,
       },
     };
   }

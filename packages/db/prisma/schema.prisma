@@ -122,6 +122,9 @@ model OneTimeToken {
   tokenHash String       @unique
   expiresAt DateTime
   usedAt    DateTime?
+  /// Wrong guesses against this token. Short numeric codes (email verification)
+  /// are burned after a few misses so they can't be brute-forced.
+  attempts  Int          @default(0)
   createdAt DateTime     @default(now())
 
   @@index([userId, purpose])
@@ -1202,8 +1205,14 @@ model Resource {
   externalUrl String? // or a link out
   topicId     String?
 
-  // null = public; otherwise the minimum tier that unlocks it
+  // Legacy: null = public; otherwise the minimum tier that unlocks it
   minTier MembershipTier?
+
+  /// Member library: the membership types whose ACTIVE members can read this.
+  /// Empty = every active member. Student material differs from Executive, etc.
+  tiers         MembershipTier[] @default([])
+  fileName      String? // original filename of an uploaded PDF (storageKey holds the path)
+  fileSizeBytes Int?
 
   status        PublishStatus @default(DRAFT)
   publishedAt   DateTime?

@@ -24,14 +24,19 @@ async function main(): Promise<void> {
   }
 
   const email = emailArg.trim().toLowerCase();
-  const user = await prisma.user.findUnique({ where: { email }, select: { id: true, role: true } });
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true, role: true, emailVerifiedAt: true } });
   if (!user) {
     console.error(`No user registered with ${email}. Register through the website first.`);
     process.exit(1);
   }
 
   await prisma.$transaction([
-    prisma.user.update({ where: { id: user.id }, data: { role } }),
+    // Staff accounts are set up by someone with shell access, which is proof
+    // enough of the address — mark it verified so they are never locked out.
+    prisma.user.update({
+      where: { id: user.id },
+      data: { role, ...(user.emailVerifiedAt ? {} : { emailVerifiedAt: new Date(), status: "ACTIVE" as const }) },
+    }),
     prisma.auditLog.create({
       data: {
         actorUserId: null,

@@ -32,9 +32,13 @@ export class PublicContentService {
     });
   }
 
-  /** "Digital library" — public resources only; gated ones need a signed-in tier check we don't do here. */
-  resources() {
-    return this.prisma.resource.findMany({
+  /**
+   * Public "Digital library" listing. Member books (uploaded PDFs) appear by title
+   * only — the file itself is served by /library/:id/file to paid members — and a
+   * gated item's external link is withheld.
+   */
+  async resources() {
+    const rows = await this.prisma.resource.findMany({
       where: { status: "PUBLISHED" },
       orderBy: { publishedAt: "desc" },
       select: {
@@ -45,8 +49,14 @@ export class PublicContentService {
         kind: true,
         externalUrl: true,
         minTier: true,
+        tiers: true,
+        storageKey: true,
         topic: { select: { name: true } },
       },
+    });
+    return rows.map(({ storageKey, ...r }) => {
+      const gated = Boolean(storageKey) || r.tiers.length > 0 || r.minTier !== null;
+      return { ...r, memberOnly: gated, externalUrl: gated ? null : r.externalUrl };
     });
   }
 

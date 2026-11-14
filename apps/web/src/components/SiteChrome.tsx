@@ -97,7 +97,7 @@ export function SiteHeader() {
             Sign in
           </Link>
           <Link
-            href="/membership"
+            href="/register"
             className="rounded-lg bg-paca-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-paca-600"
           >
             Join PACA

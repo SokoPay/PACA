@@ -173,6 +173,41 @@ export default function AssessmentPage() {
           )}
         </div>
 
+        {result.competency && (
+          <section className="mt-6 rounded-xl border p-5" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+              Your competency level
+            </p>
+            <p className="mt-1 text-2xl font-bold text-paca-500">{result.competency.level}</p>
+            <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              {result.competency.advice}
+            </p>
+            {result.topics.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {result.topics.map((t) => {
+                  const pct = Math.round((t.correct / t.total) * 100);
+                  return (
+                    <div key={t.topic}>
+                      <div className="flex justify-between text-xs">
+                        <span>{t.topic}</span>
+                        <span style={{ color: "var(--text-muted)" }}>
+                          {t.correct}/{t.total}
+                        </span>
+                      </div>
+                      <div className="mt-1 h-2 overflow-hidden rounded-full" style={{ background: "var(--border)" }}>
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${pct}%`, background: pct >= 70 ? "var(--color-paca-500)" : "#d68910" }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
         {result.certificate && (
           <div
             className="mt-6 flex items-center justify-between rounded-xl border p-5"
@@ -259,10 +294,11 @@ export default function AssessmentPage() {
   if (!attempt) {
     return (
       <main className="mx-auto max-w-2xl px-5 py-20 text-center">
-        <h1 className="text-3xl font-bold tracking-tight">PACA open assessment</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Free competency test</h1>
         <p className="mt-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>
-          A free practice assessment drawn from the PACA question bank — 20 questions, 30 minutes, open to every
-          member. Score 70% or higher to earn a certificate of completion.
+          Check your Agile competency before you pay or sit the certification exam. 20 questions from the PACA question
+          bank, 30 minutes, free for every registered member. You&rsquo;ll get your competency level and a score per
+          topic, and a score of 70% or higher earns a certificate of completion.
         </p>
         {error && (
           <p role="alert" className="mt-6 rounded-lg px-4 py-3 text-sm" style={{ background: "#c0392b1a", color: "#c0392b" }}>

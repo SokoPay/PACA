@@ -41,6 +41,20 @@ function seededShuffle<T>(items: T[], rand: () => number): T[] {
   return arr;
 }
 
+/**
+ * Competency band for the free test. Advisory only — it helps a member judge which
+ * membership type and study material fit them; it is not a certification result.
+ */
+function competencyFor(scoreBps: number) {
+  if (scoreBps >= 8500)
+    return { level: "Advanced", advice: "Strong, broad Agile knowledge. The Professional or Executive membership suits you." };
+  if (scoreBps >= 7000)
+    return { level: "Proficient", advice: "Solid working knowledge. Professional membership is a good fit; review the topics you missed." };
+  if (scoreBps >= 5000)
+    return { level: "Developing", advice: "Good foundations with gaps. Study the member library before sitting the certification exam." };
+  return { level: "Foundation", advice: "You are early in your Agile journey. Student membership and its study books are a good place to start." };
+}
+
 function todayDateOnly(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -316,8 +330,26 @@ export class AssessmentService {
     const rows = await this.prisma.attemptQuestion.findMany({
       where: { attemptId },
       orderBy: { position: "asc" },
-      include: { question: { select: { stem: true, options: { select: { id: true, text: true, sortOrder: true } } } } },
+      include: {
+        question: {
+          select: {
+            stem: true,
+            topic: { select: { name: true } },
+            options: { select: { id: true, text: true, sortOrder: true } },
+          },
+        },
+      },
     });
+
+    // Per-topic score, so the member knows what to study.
+    const byTopic = new Map<string, { topic: string; correct: number; total: number }>();
+    for (const r of rows) {
+      const name = r.question.topic?.name ?? "General";
+      const t = byTopic.get(name) ?? { topic: name, correct: 0, total: 0 };
+      t.total++;
+      if (r.isCorrect) t.correct++;
+      byTopic.set(name, t);
+    }
 
     const certificate = attempt.passed
       ? await this.prisma.certificate.findUnique({ where: { attemptId }, select: { id: true, credentialId: true } })
@@ -332,6 +364,8 @@ export class AssessmentService {
       passed: attempt.passed,
       passMarkBps: attempt.passMarkBps,
       certificate,
+      competency: competencyFor(attempt.scoreBps ?? 0),
+      topics: [...byTopic.values()].sort((a, b) => a.correct / a.total - b.correct / b.total),
       review: rows.map((r) => ({
         stem: r.question.stem,
         isCorrect: r.isCorrect,
