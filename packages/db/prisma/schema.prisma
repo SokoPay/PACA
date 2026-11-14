@@ -793,6 +793,14 @@ model Partner {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 
+  /// Discount the partner gives PACA members on its courses, once agreed.
+  /// null = still being negotiated ("member discount coming soon").
+  memberDiscountPercent Int?
+  /// Shown only to members with an active (paid) membership.
+  memberDiscountCode    String?
+  /// How to redeem, e.g. "Enter the code at checkout" or "Email training@...".
+  memberDiscountNote    String?
+
   courses     Course[]
   discounts   DiscountCode[]
   apiKeys     PartnerApiKey[]

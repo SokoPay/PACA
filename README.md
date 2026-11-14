@@ -233,6 +233,23 @@ is enough for card payments.
 own test card and test mobile money options. A simple test card is
 `4084 0840 8408 4081`, any future expiry, CVV `408`.
 
+## Partner courses and member discounts
+
+**Explore courses** (`/courses`) lists the training partners (Scrum.org,
+ProKanban.org, Scrum Alliance) and PACA's own courses (coming soon). Each
+partner has a page of course cards (`/courses/partners/<partner>`), and each
+card opens a course page with the facts, the PACA member offer, and a button to
+take the course on the partner's site.
+
+The course list is kept in `apps/web/src/lib/catalog.ts` (titles, levels and
+links from the partners' public catalogues; summaries in PACA's own words).
+
+Once a partner agrees a discount, set it in **Admin → Partner discounts**: the
+percentage, a discount code and how to redeem it. The percentage shows publicly
+("PACA members save 15%"); the code and redemption steps show only to members
+with an active, paid membership. Until a percentage is set, the site says
+"Member discount coming soon".
+
 ## Deploying to a DigitalOcean droplet (test environment)
 
 `docker-compose.prod.yml` runs PACA as one self-contained Docker project named

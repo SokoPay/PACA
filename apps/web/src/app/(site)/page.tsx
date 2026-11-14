@@ -168,20 +168,18 @@ export default async function HomePage() {
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-6">
             {PARTNERS.map((p) => (
-              <a
+              <Link
                 key={p.name}
-                href={p.url}
-                target="_blank"
-                rel="noreferrer"
+                href={`/courses/partners/${p.slug}`}
                 className="flex h-32 w-44 items-center justify-center rounded-xl border bg-white p-3 transition hover:border-paca-500 hover:shadow-md"
                 style={{ borderColor: "var(--border)" }}
               >
                 <Image src={p.logo} alt={p.name} className="max-h-full w-auto object-contain" />
-              </a>
+              </Link>
             ))}
           </div>
-          <Link href="/partners" className="mt-6 inline-block text-sm font-semibold text-paca-500 hover:underline">
-            About our partners &rarr;
+          <Link href="/courses" className="mt-6 inline-block text-sm font-semibold text-paca-500 hover:underline">
+            Explore partner courses &rarr;
           </Link>
         </div>
       </section>

@@ -23,9 +23,7 @@ export default async function PartnersPage() {
         {PARTNERS.map((p) => (
           <a
             key={p.name}
-            href={p.url}
-            target="_blank"
-            rel="noreferrer"
+            href={`/courses/partners/${p.slug}`}
             className="flex flex-col rounded-xl border p-5 transition hover:border-paca-500 hover:shadow-md"
             style={{ borderColor: "var(--border)", background: "var(--surface)" }}
           >
@@ -36,7 +34,7 @@ export default async function PartnersPage() {
             <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
               {p.description}
             </p>
-            <span className="mt-3 text-sm text-paca-500">Visit website &rarr;</span>
+            <span className="mt-3 text-sm font-semibold text-paca-500">View courses &amp; member discount &rarr;</span>
           </a>
         ))}
       </div>

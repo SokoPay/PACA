@@ -10,6 +10,7 @@ const NAV: Array<{ href: string; label: string; minRole?: "ADMIN" }> = [
   { href: "/admin/users", label: "Users", minRole: "ADMIN" },
   { href: "/admin/payments", label: "Payments", minRole: "ADMIN" },
   { href: "/admin/library", label: "Member library", minRole: "ADMIN" },
+  { href: "/admin/partners", label: "Partner discounts", minRole: "ADMIN" },
   { href: "/admin/queue", label: "Review queue" },
   { href: "/admin/questions", label: "All questions" },
   { href: "/admin/assessments", label: "Exam performance", minRole: "ADMIN" },

@@ -22,8 +22,12 @@ const NAV: Array<{ label: string; href: string; children?: Array<{ label: string
     label: "Explore courses",
     href: "/courses",
     children: [
-      { label: "PACA courses", href: "/courses" },
-      { label: "Partners", href: "/partners" },
+      { label: "All courses", href: "/courses" },
+      { label: "Scrum.org courses", href: "/courses/partners/scrum-org" },
+      { label: "ProKanban.org courses", href: "/courses/partners/prokanban" },
+      { label: "Scrum Alliance courses", href: "/courses/partners/scrum-alliance" },
+      { label: "PACA courses", href: "/courses#paca" },
+      { label: "Our partners", href: "/partners" },
     ],
   },
   {

@@ -55,6 +55,7 @@ export function badgeFor(tier: string): Badge | undefined {
 }
 
 export interface PartnerBrand {
+  slug: "scrum-org" | "prokanban" | "scrum-alliance";
   name: string;
   url: string;
   logo: StaticImageData; // square/large, for the partners page and home page
@@ -64,6 +65,7 @@ export interface PartnerBrand {
 
 export const PARTNERS: PartnerBrand[] = [
   {
+    slug: "scrum-org",
     name: "Scrum.org",
     url: "https://www.scrum.org",
     logo: scrumOrgLogo,
@@ -71,6 +73,7 @@ export const PARTNERS: PartnerBrand[] = [
     description: "Professional Scrum training, assessments and certification.",
   },
   {
+    slug: "prokanban",
     name: "ProKanban.org",
     url: "https://www.prokanban.org",
     logo: proKanbanLogo,
@@ -78,6 +81,7 @@ export const PARTNERS: PartnerBrand[] = [
     description: "Professional Kanban training and the Kanban Guide community.",
   },
   {
+    slug: "scrum-alliance",
     name: "Scrum Alliance",
     url: "https://www.scrumalliance.org",
     logo: scrumAllianceLogo,
@@ -85,3 +89,7 @@ export const PARTNERS: PartnerBrand[] = [
     description: "Agile and Scrum certifications, education and community.",
   },
 ];
+
+export function partnerBrand(slug: string): PartnerBrand | undefined {
+  return PARTNERS.find((p) => p.slug === slug);
+}

@@ -1017,3 +1017,43 @@ export function updateLibraryBook(
 export function deleteLibraryBook(id: string): Promise<void> {
   return api(`/admin/library/${id}`, { method: "DELETE" });
 }
+
+// ---------------------------------------------------------------- partner course discounts
+
+export interface PartnerOffer {
+  slug: string;
+  /** null = still being agreed with the partner. */
+  discountPercent: number | null;
+}
+
+export const fetchPartnerOffers = () => publicFetch<PartnerOffer[]>("/partner-offers");
+
+export interface MemberPartnerOffer {
+  eligible: boolean;
+  discountPercent: number | null;
+  code: string | null;
+  note: string | null;
+}
+
+export function fetchMyPartnerOffer(slug: string): Promise<MemberPartnerOffer> {
+  return api(`/partner-offers/${slug}/mine`);
+}
+
+export interface AdminPartnerOffer {
+  slug: string;
+  name: string;
+  discountPercent: number | null;
+  code: string | null;
+  note: string | null;
+}
+
+export function fetchAdminPartnerOffers(): Promise<AdminPartnerOffer[]> {
+  return api("/admin/partner-offers");
+}
+
+export function saveAdminPartnerOffer(
+  slug: string,
+  body: { discountPercent: number | null; code: string | null; note: string | null },
+): Promise<AdminPartnerOffer> {
+  return api(`/admin/partner-offers/${slug}`, { method: "PUT", body: JSON.stringify(body) });
+}
