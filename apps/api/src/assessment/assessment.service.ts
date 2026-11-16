@@ -84,20 +84,27 @@ export class AssessmentService {
         question: {
           select: { id: true, stem: true, kind: true, options: { select: { id: true, text: true, sortOrder: true } } },
         },
+        optionOrder: true,
       },
     });
 
-    return rows.map((r) => ({
-      position: r.position,
-      questionId: r.question.id,
-      stem: r.question.stem,
-      kind: r.question.kind,
-      selectedOptionIds: r.selectedOptionIds,
-      options: r.question.options
+    return rows.map((r) => {
+      // Certification sittings store a per-attempt option shuffle; otherwise use the question's own order.
+      const rank = new Map(r.optionOrder.map((id, i) => [id, i]));
+      const options = r.question.options
         .slice()
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((o) => ({ id: o.id, text: o.text })),
-    }));
+        .sort((a, b) =>
+          rank.size ? (rank.get(a.id) ?? 99) - (rank.get(b.id) ?? 99) : a.sortOrder - b.sortOrder,
+        );
+      return {
+        position: r.position,
+        questionId: r.question.id,
+        stem: r.question.stem,
+        kind: r.question.kind,
+        selectedOptionIds: r.selectedOptionIds,
+        options: options.map((o) => ({ id: o.id, text: o.text })),
+      };
+    });
   }
 
   private async toAttemptView(attempt: {
@@ -266,6 +273,7 @@ export class AssessmentService {
     difficulty: Difficulty;
     seed: number;
     ctx: RequestContext;
+    shuffleOptions?: boolean;
   }) {
     const previous = await this.prisma.attempt.count({ where: { userId: input.userId, type: input.type } });
     const now = new Date();
@@ -290,7 +298,26 @@ export class AssessmentService {
     });
 
     await this.prisma.attemptQuestion.createMany({
-      data: input.questionIds.map((questionId, i) => ({ attemptId: attempt.id, questionId, position: i, optionOrder: [] })),
+      data: await (async () => {
+        if (!input.shuffleOptions) {
+          return input.questionIds.map((questionId, i) => ({ attemptId: attempt.id, questionId, position: i, optionOrder: [] as string[] }));
+        }
+        // Shuffle answer options per sitting too, so neighbours never see the same A/B/C/D.
+        const opts = await this.prisma.questionOption.findMany({
+          where: { questionId: { in: input.questionIds } },
+          select: { id: true, questionId: true },
+        });
+        const rand = mulberry32(input.seed ^ 0x5bd1e995);
+        return input.questionIds.map((questionId, i) => ({
+          attemptId: attempt.id,
+          questionId,
+          position: i,
+          optionOrder: seededShuffle(
+            opts.filter((o) => o.questionId === questionId).map((o) => o.id),
+            rand,
+          ),
+        }));
+      })(),
     });
 
     await this.audit.record({
@@ -481,23 +508,33 @@ export class AssessmentService {
     }
     if (!entitlementId) throw new ForbiddenException("You have no exam attempts remaining.");
 
-    // Prefer questions at the tier's difficulty; top up from the rest of the bank.
-    const atLevel = await this.prisma.question.findMany({
+    // Each tier has its own question pool (Student = Foundation, Professional =
+    // Intermediate, Executive = Advanced) — tiers never share exam questions.
+    // Within the pool, every sitting gets a fresh random draw and order, and
+    // questions this member saw in earlier sittings go to the back of the queue.
+    const pool = await this.prisma.question.findMany({
       where: { status: "PUBLISHED", difficulty: config.difficulty },
       select: { id: true },
     });
-    const others = await this.prisma.question.findMany({
-      where: { status: "PUBLISHED", difficulty: { not: config.difficulty } },
-      select: { id: true },
-    });
+    const seenBefore = new Set(
+      (
+        await this.prisma.attemptQuestion.findMany({
+          where: { attempt: { userId: user.id, type: "CERTIFICATION" } },
+          select: { questionId: true },
+        })
+      ).map((r) => r.questionId),
+    );
     const seed = Math.floor(Math.random() * 2 ** 31);
     const rand = mulberry32(seed);
-    const pool = [...seededShuffle(atLevel, rand), ...seededShuffle(others, rand)];
-    const questionIds = pool.slice(0, Math.min(config.examQuestionCount, pool.length)).map((q) => q.id);
-    if (questionIds.length === 0) {
+    const fresh = seededShuffle(pool.filter((q) => !seenBefore.has(q.id)), rand);
+    const repeat = seededShuffle(pool.filter((q) => seenBefore.has(q.id)), rand);
+    const questionIds = [...fresh, ...repeat].slice(0, config.examQuestionCount).map((q) => q.id);
+    if (questionIds.length < config.examQuestionCount) {
       // Give the attempt back — nothing was sat.
       await this.prisma.examEntitlement.update({ where: { id: entitlementId }, data: { attemptsUsed: { decrement: 1 } } });
-      throw new ConflictException("The exam question bank is not ready yet. Please try again later.");
+      throw new ConflictException(
+        "The exam question bank for your membership type is still being prepared. Your chance has not been used — please try again later.",
+      );
     }
 
     const attempt = await this.createAttempt({
@@ -511,6 +548,7 @@ export class AssessmentService {
       difficulty: config.difficulty,
       seed,
       ctx,
+      shuffleOptions: true,
     });
     return this.toAttemptView(attempt);
   }

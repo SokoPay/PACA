@@ -248,6 +248,14 @@ own test card and test mobile money options. A simple test card is
   PACA certificate; exam answers are never revealed. **Note:** both use the same
   question bank, so questions seen in the free test can appear in the exam. Keep
   growing the bank (Admin → Review queue) so that matters less.
+- **Exam question bank** (Admin → Exam question bank): each tier has its own
+  pool (Student = Foundation, Professional = Intermediate, Executive = Advanced);
+  tiers never share questions. Each sitting draws a random set in random order
+  with shuffled options, preferring questions the member hasn't seen. An exam
+  can't start until its pool has at least the exam's question count (the chance
+  is refunded). "Draft with AI" writes original questions grounded in the Scrum
+  Guide and Kanban Guide (CC BY-SA 4.0) — not copied from other sites — and they
+  wait in the review queue until approved.
 - **Member badge**: active members see their badge on the dashboard with "Add to
   LinkedIn profile", download, and share buttons. The public badge page
   `/members/<member number>` shows name, type and standing (no contact details).
