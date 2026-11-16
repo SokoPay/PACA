@@ -244,3 +244,51 @@ body {
     transform: none;
   }
 }
+
+/* ------------------------------------------------------------------ hero photo blend */
+
+/* Slow "Ken Burns" drift so the photo feels alive. */
+.hero-photo {
+  animation: paca-kenburns 28s ease-in-out infinite alternate;
+  transform-origin: 70% 50%;
+}
+@keyframes paca-kenburns {
+  from {
+    transform: scale(1.04);
+  }
+  to {
+    transform: scale(1.14) translateX(-1.5%);
+  }
+}
+
+/* Brand colour wash, blended into the photo. */
+.hero-tint {
+  background: linear-gradient(120deg, #0a3d91, #0078ff 55%, #2b9bff);
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+
+/* Deep navy behind the copy, opening up to the people on the right; soft fade at the bottom. */
+.hero-fade {
+  background:
+    linear-gradient(90deg, rgba(3, 26, 69, 0.97) 0%, rgba(3, 26, 69, 0.9) 32%, rgba(6, 42, 102, 0.55) 58%, rgba(6, 42, 102, 0.12) 82%, rgba(6, 42, 102, 0) 100%),
+    linear-gradient(0deg, rgba(3, 26, 69, 0.85) 0%, rgba(3, 26, 69, 0) 28%);
+}
+
+@media (max-width: 767px) {
+  .hero-fade {
+    background: linear-gradient(180deg, rgba(3, 26, 69, 0.78) 0%, rgba(3, 26, 69, 0.9) 60%, rgba(3, 26, 69, 0.97) 100%);
+  }
+}
+
+/* Interior page banners carry a faint, blended echo of the same photo. */
+.hero-echo {
+  mix-blend-mode: soft-light;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-photo {
+    animation: none;
+  }
+}

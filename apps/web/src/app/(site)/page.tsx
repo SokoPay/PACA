@@ -4,6 +4,7 @@ import { fetchEvents, fetchTiers, formatUsd, type EventItem, type TierInfo } fro
 import { EventCard } from "@/components/EventCard";
 import { BADGES, PARTNERS } from "@/lib/brand";
 import { PARTNER_COURSES } from "@/lib/catalog";
+import banner from "@/images/banner-hero.jpg";
 
 export const metadata = {
   title: { absolute: "PACA — Professional Agile Certification, Africa" },
@@ -35,28 +36,40 @@ export default async function HomePage() {
   return (
     <main>
       {/* ------------------------------------------------------------ hero */}
-      <section className="paca-gradient grain relative overflow-hidden text-white">
-        <div className="aurora" aria-hidden>
+      <section className="relative isolate overflow-hidden bg-[#031a45] text-white">
+        {/* Photo, blended into the brand colours: navy behind the copy, the people clear on the right. */}
+        <Image
+          src={banner}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="hero-photo -z-30 object-cover object-[70%_center]"
+        />
+        <div className="hero-tint absolute inset-0 -z-20" aria-hidden />
+        <div className="hero-fade absolute inset-0 -z-20" aria-hidden />
+        <div className="aurora opacity-70" aria-hidden>
           <span />
           <span />
           <span />
         </div>
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 pb-24 pt-20 lg:grid-cols-[1.1fr_0.9fr] lg:pt-28">
-          <div>
+
+        <div className="mx-auto flex min-h-[600px] max-w-6xl items-center px-5 pb-20 pt-20 lg:min-h-[660px] lg:pt-24">
+          <div className="max-w-2xl">
             <p className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-white/90 backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-[#f2b134]" /> Professional Agile Certification &mdash; Africa
             </p>
-            <h1 className="mt-6 text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl">
+            <h1 className="mt-6 text-4xl font-extrabold leading-[1.08] tracking-tight drop-shadow-lg sm:text-6xl">
               The standard for <span className="text-gradient">Agile professionals</span> in Africa.
             </h1>
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/85">
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/90 drop-shadow">
               Get certified, earn a badge employers trust, and grow with a community of Scrum Masters, Product Owners and
               Agile leaders across the continent.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link
                 href="/register"
-                className="rounded-xl bg-white px-7 py-3.5 text-sm font-bold text-paca-700 shadow-xl shadow-black/20 transition hover:-translate-y-0.5"
+                className="rounded-xl bg-white px-7 py-3.5 text-sm font-bold text-paca-700 shadow-xl shadow-black/30 transition hover:-translate-y-0.5"
               >
                 Join PACA — it&rsquo;s free to register
               </Link>
@@ -67,20 +80,27 @@ export default async function HomePage() {
                 Take the free competency test
               </Link>
             </div>
-            <p className="mt-5 text-sm text-white/70">Free test · 20 questions · see every answer explained</p>
-          </div>
 
-          <div className="relative mx-auto grid w-full max-w-md grid-cols-2 gap-5">
-            {BADGES.map((b, i) => (
-              <Link
-                key={b.tier}
-                href={`/membership/${b.slug}`}
-                className="bob block rounded-3xl bg-white/95 p-3 shadow-2xl shadow-black/30 transition hover:scale-[1.04]"
-                style={{ ["--tilt" as string]: `${[-4, 3, 2, -3][i]}deg`, animationDelay: `${i * -1.4}s` }}
-              >
-                <Image src={b.image} alt={`${b.name} badge`} width={200} height={169} priority className="h-auto w-full rounded-2xl" />
-              </Link>
-            ))}
+            {/* badges in a glass strip */}
+            <div className="mt-10 inline-flex flex-wrap items-center gap-3 rounded-2xl border border-white/20 bg-white/10 p-3 pr-5 backdrop-blur-md">
+              <div className="flex -space-x-3">
+                {BADGES.map((b, i) => (
+                  <Link
+                    key={b.tier}
+                    href={`/membership/${b.slug}`}
+                    className="bob block rounded-xl bg-white p-1 shadow-lg ring-2 ring-white/60 transition hover:z-10 hover:scale-110"
+                    style={{ ["--tilt" as string]: `${[-5, 3, -2, 4][i]}deg`, animationDelay: `${i * -1.4}s` }}
+                    title={b.name}
+                  >
+                    <Image src={b.image} alt={`${b.name} badge`} width={64} height={54} className="h-[54px] w-16 rounded-lg object-contain" />
+                  </Link>
+                ))}
+              </div>
+              <div className="text-sm leading-tight">
+                <p className="font-semibold">4 certification badges</p>
+                <p className="text-white/75">Student · Professional · Executive · Fellow</p>
+              </div>
+            </div>
           </div>
         </div>
 

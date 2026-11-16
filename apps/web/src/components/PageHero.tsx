@@ -1,3 +1,6 @@
+import Image from "next/image";
+import banner from "@/images/banner-hero.jpg";
+
 /** The gradient banner at the top of every public page, so the whole site feels like one product. */
 export function PageHero({
   eyebrow,
@@ -12,6 +15,7 @@ export function PageHero({
 }) {
   return (
     <section className="paca-gradient grain relative overflow-hidden text-white">
+      <Image src={banner} alt="" fill sizes="100vw" className="hero-echo -z-10 object-cover object-[70%_center]" />
       <div className="aurora" aria-hidden>
         <span />
         <span />
