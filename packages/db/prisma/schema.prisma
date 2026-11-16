@@ -680,6 +680,9 @@ model Attempt {
   passed            Boolean?
   certificateIssued Boolean  @default(false)
 
+  /// Set when the member shares a FREE_OPEN result publicly (pac-a.org/score/{id}).
+  sharedAt DateTime?
+
   ipAddress String?
   userAgent String?
 
@@ -1054,6 +1057,10 @@ model Announcement {
   // Empty = visible to everyone
   visibleToTiers MembershipTier[] @default([])
 
+  /// Who sees it: ALL_USERS (everyone registered), ALL_MEMBERS (active paid
+  /// members), or BY_TIER (active members of visibleToTiers).
+  audience CampaignAudience @default(ALL_USERS)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1256,6 +1263,8 @@ model FaqItem {
 // ============================================================
 
 enum JobSourceKind {
+  JOBICY // public remote-jobs API (credit + link back required)
+  ARBEITNOW // public job-board API
   GREENHOUSE
   LEVER
   WORKABLE
@@ -1324,6 +1333,8 @@ model JobListing {
   isRemote       Boolean @default(false)
   employmentType String?
   description    String?
+  /// One-sentence AI summary shown on the job card.
+  summary        String?
   applyUrl       String
 
   salaryMin      Int?

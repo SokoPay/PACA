@@ -68,38 +68,39 @@ export class PublicContentService {
     });
   }
 
-  jobs() {
-    return this.prisma.jobListing.findMany({
-      where: { status: "PUBLISHED" },
-      orderBy: { postedAt: "desc" },
-      take: 100,
-      select: {
-        id: true,
-        title: true,
-        company: true,
-        location: true,
-        isRemote: true,
-        employmentType: true,
-        agileRole: true,
-        seniority: true,
-        applyUrl: true,
-      },
-    });
+  /**
+   * Public teaser for the members-only job board: the count and a few recent
+   * titles, without apply links (those are a paid-member benefit).
+   */
+  async jobs() {
+    const [total, latest] = await Promise.all([
+      this.prisma.jobListing.count({ where: { status: "PUBLISHED" } }),
+      this.prisma.jobListing.findMany({
+        where: { status: "PUBLISHED" },
+        orderBy: { fetchedAt: "desc" },
+        take: 6,
+        select: { id: true, title: true, company: true, location: true, isRemote: true, agileRole: true, seniority: true },
+      }),
+    ]);
+    return { total, latest };
   }
 
-  /** Members who opted in to the public professional directory. */
-  directory() {
-    return this.prisma.profile.findMany({
-      where: { isPublicInDirectory: true },
+  /**
+   * Public professional database: paid members in good standing who opted in.
+   * Name, role, country and badge only; bio and LinkedIn are for paid members
+   * (the members-only network), as the profile page tells the member.
+   */
+  async directory() {
+    const rows = await this.prisma.profile.findMany({
+      where: { isPublicInDirectory: true, user: { deletedAt: null, membership: { status: "ACTIVE" } } },
+      take: 300,
       select: {
         occupation: true,
-        employer: true,
-        institution: true,
         country: true,
-        linkedinUrl: true,
-        bio: true,
-        user: { select: { firstName: true, lastName: true } },
+        user: { select: { firstName: true, lastName: true, membership: { select: { tier: true, status: true, memberNumber: true } } } },
       },
     });
+    return rows.map((r) => ({ ...r, employer: null, institution: null, linkedinUrl: null, bio: null }));
   }
+
 }

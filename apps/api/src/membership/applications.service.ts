@@ -243,7 +243,7 @@ export class ApplicationsService {
 
     if (membership?.status === "ACTIVE") {
       nextAction = tierConfig?.requiresExam
-        ? { kind: "SIT_EXAM", message: "Your membership is active. Sit the certification assessment to earn your certificate and badge." }
+        ? { kind: "SIT_EXAM", message: "Your membership is active. Sit the certification exam for your membership type to earn your PACA certificate." }
         : { kind: "NONE", message: "Your membership is active." };
     } else if (membership?.status === "PENDING_PAYMENT" || membership?.status === "LAPSED") {
       const amountUsdCents = tierConfig?.priceUsdCents ?? 0;

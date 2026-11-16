@@ -12,6 +12,8 @@ import { CertificateModule } from "./certificates/certificate.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { LibraryModule } from "./library/library.module";
 import { PartnersModule } from "./partners/partners.module";
+import { EngagementModule } from "./engagement/engagement.module";
+import { JobsModule } from "./jobs/jobs.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { HealthController } from "./health.controller";
@@ -37,6 +39,8 @@ import { HealthController } from "./health.controller";
     PaymentsModule,
     LibraryModule,
     PartnersModule,
+    EngagementModule,
+    JobsModule,
   ],
   controllers: [HealthController],
   providers: [

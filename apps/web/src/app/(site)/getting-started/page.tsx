@@ -9,7 +9,7 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 const STEPS: Array<[string, string]> = [
-  ["Create an account", "Free, and takes a minute. You can explore the free open assessment straight away."],
+  ["Create an account", "Free, and takes a minute. You can take the free competency test straight away."],
   ["Choose your membership type", "Each type has its own eligibility criteria and application form."],
   ["Complete the application", "Fill in the form and upload your supporting documents. Progress saves as you go."],
   ["Board review", "Your application is reviewed. We email you as soon as there is a decision."],

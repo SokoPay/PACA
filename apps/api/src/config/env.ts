@@ -64,7 +64,10 @@ const schema = z.object({
   MAIL_FROM_EMAIL: z.string().email().optional(),
   MAIL_FROM_NAME: z.string().default("PACA"),
   ANTHROPIC_API_KEY: z.string().optional(),
-  AI_MODEL: z.string().default("claude-sonnet-5"),
+  /** Claude model used to classify crawled job postings (needs ANTHROPIC_API_KEY). */
+  AI_MODEL: z.string().default("claude-opus-5-5"),
+  /** Hours between job-board crawls. 0 turns the scheduled crawl off. */
+  JOBS_CRAWL_HOURS: z.coerce.number().min(0).max(168).default(12),
 });
 
 export type Env = z.infer<typeof schema>;

@@ -67,10 +67,10 @@ export default function CertificatesPage() {
       {certificates.length === 0 ? (
         <p className="mt-8 text-sm" style={{ color: "var(--text-muted)" }}>
           You have no certificates yet.{" "}
-          <Link href="/assessment" className="text-paca-500 hover:underline">
-            Sit the open assessment
+          <Link href="/exam" className="text-paca-500 hover:underline">
+            Pass the certification exam
           </Link>{" "}
-          to earn one.
+          for your membership type to earn one.
         </p>
       ) : (
         <ul className="mt-8 space-y-4">
@@ -82,7 +82,7 @@ export default function CertificatesPage() {
             >
               <div>
                 <p className="text-sm font-semibold">
-                  {c.tier ? `${c.tier} certification` : "PACA Open Assessment"} · {STATUS_LABEL[c.status]}
+                  {c.tier ? `${c.tier} certification` : "Completion certificate (legacy)"} · {STATUS_LABEL[c.status]}
                 </p>
                 <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
                   Credential ID {c.credentialId} · issued{" "}

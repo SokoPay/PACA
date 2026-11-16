@@ -707,16 +707,9 @@ export interface FaqListItem {
   category: string | null;
 }
 
-export interface JobListItem {
-  id: string;
-  title: string;
-  company: string;
-  location: string | null;
-  isRemote: boolean;
-  employmentType: string | null;
-  agileRole: string | null;
-  seniority: string | null;
-  applyUrl: string;
+export interface JobTeaser {
+  total: number;
+  latest: Array<{ id: string; title: string; company: string; location: string | null; isRemote: boolean; agileRole: string | null; seniority: string | null }>;
 }
 
 export interface DirectoryListItem {
@@ -726,14 +719,14 @@ export interface DirectoryListItem {
   country: string | null;
   linkedinUrl: string | null;
   bio: string | null;
-  user: { firstName: string; lastName: string };
+  user: { firstName: string; lastName: string; membership: { tier: MembershipTierValue; status: string; memberNumber: string } | null };
 }
 
 export const fetchCourses = () => publicFetch<CourseListItem[]>("/courses");
 export const fetchPartners = () => publicFetch<PartnerListItem[]>("/partners");
 export const fetchResources = () => publicFetch<ResourceListItem[]>("/resources");
 export const fetchFaqItems = () => publicFetch<FaqListItem[]>("/faq");
-export const fetchJobs = () => publicFetch<JobListItem[]>("/jobs");
+export const fetchJobTeaser = () => publicFetch<JobTeaser>("/jobs");
 export const fetchDirectory = () => publicFetch<DirectoryListItem[]>("/directory");
 
 // ---------------------------------------------------------------- assessment (PACA open assessment)
@@ -749,6 +742,7 @@ export interface AssessmentQuestionView {
 
 export interface AssessmentAttemptView {
   id: string;
+  type?: "FREE_OPEN" | "CERTIFICATION";
   status: "IN_PROGRESS";
   expiresAt: string;
   questionCount: number;
@@ -758,6 +752,8 @@ export interface AssessmentAttemptView {
 
 export interface AssessmentResultView {
   id: string;
+  type?: "FREE_OPEN" | "CERTIFICATION";
+  sharedAt?: string | null;
   status: "SUBMITTED" | "EXPIRED";
   questionCount: number;
   correctCount: number;
@@ -775,6 +771,9 @@ export interface AssessmentResultView {
     isCorrect: boolean | null;
     selectedOptionIds: string[];
     options: Array<{ id: string; text: string }>;
+    /** Free test only — the certification exam never reveals its key. */
+    correctOptionIds?: string[] | null;
+    explanation?: string | null;
   }>;
 }
 
@@ -1057,3 +1056,222 @@ export function saveAdminPartnerOffer(
 ): Promise<AdminPartnerOffer> {
   return api(`/admin/partner-offers/${slug}`, { method: "PUT", body: JSON.stringify(body) });
 }
+
+// ---------------------------------------------------------------- certification exam
+
+export interface ExamStatus {
+  eligible: boolean;
+  reason: string | null;
+  tier: MembershipTierValue | null;
+  tierName: string | null;
+  questionCount: number | null;
+  durationMins: number | null;
+  passMarkBps: number | null;
+  attemptsRemaining: number;
+  certificate: { id: string; credentialId: string; issuedAt: string } | null;
+  lastAttempt: { id: string; scoreBps: number | null; passed: boolean | null; submittedAt: string | null } | null;
+  activeAttempt: AssessmentAttemptView | null;
+}
+
+export const fetchExamStatus = () => api<ExamStatus>("/exam/status");
+export const startExam = () => api<AssessmentAttemptView>("/exam/start", { method: "POST" });
+
+// ---------------------------------------------------------------- sharing
+
+export function shareAssessment(id: string): Promise<{ id: string }> {
+  return api(`/assessment/${id}/share`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export interface PublicScore {
+  id: string;
+  name: string;
+  scoreBps: number;
+  correctCount: number;
+  questionCount: number;
+  level: string;
+  takenAt: string;
+}
+export const fetchPublicScore = (id: string) => publicFetch<PublicScore>(`/public/scores/${encodeURIComponent(id)}`);
+
+export interface PublicMember {
+  memberNumber: string;
+  name: string;
+  tier: MembershipTierValue;
+  tierName: string;
+  designation: string | null;
+  inGoodStanding: boolean;
+  memberSince: string;
+  validUntil: string | null;
+  certificates: Array<{ credentialId: string; tier: MembershipTierValue | null; designation: string | null; issuedAt: string }>;
+}
+export const fetchPublicMember = (memberNumber: string) =>
+  publicFetch<PublicMember>(`/public/members/${encodeURIComponent(memberNumber)}`);
+
+/** Absolute public site URL for share links (falls back to the current origin in the browser). */
+export function siteUrl(path: string): string {
+  const base =
+    process.env.NEXT_PUBLIC_SITE_URL ?? (typeof window !== "undefined" ? window.location.origin : "https://pac-a.org");
+  return `${base.replace(/\/$/, "")}${path}`;
+}
+
+// ---------------------------------------------------------------- notifications + announcements
+
+export interface NotificationItem {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+export const fetchNotifications = () => api<{ unread: number; items: NotificationItem[] }>("/notifications");
+export const markAllNotificationsRead = () => api("/notifications/read-all", { method: "POST", body: JSON.stringify({}) });
+export const markNotificationRead = (id: string) => api(`/notifications/${id}/read`, { method: "POST", body: JSON.stringify({}) });
+
+export interface AnnouncementItem {
+  id: string;
+  title: string;
+  body: string;
+  publishedAt: string | null;
+  pinned: boolean;
+}
+export const fetchAnnouncements = () => api<AnnouncementItem[]>("/announcements");
+
+export interface AdminAnnouncement {
+  id: string;
+  title: string;
+  body: string;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  audience: "ALL_USERS" | "ALL_MEMBERS" | "BY_TIER" | "SPECIFIC_USERS";
+  visibleToTiers: MembershipTierValue[];
+  publishedAt: string | null;
+  pinnedUntil: string | null;
+  createdAt: string;
+}
+export const fetchAdminAnnouncements = () => api<AdminAnnouncement[]>("/admin/announcements");
+export const createAnnouncement = (body: {
+  title: string;
+  body: string;
+  audience: "ALL_USERS" | "ALL_MEMBERS" | "BY_TIER";
+  tiers: MembershipTierValue[];
+  publish: boolean;
+  pinDays: number | null;
+}) => api<AdminAnnouncement>("/admin/announcements", { method: "POST", body: JSON.stringify(body) });
+export const publishAnnouncement = (id: string) =>
+  api<AdminAnnouncement>(`/admin/announcements/${id}/publish`, { method: "POST", body: JSON.stringify({}) });
+export const deleteAnnouncement = (id: string) => api<void>(`/admin/announcements/${id}`, { method: "DELETE" });
+
+// ---------------------------------------------------------------- profile + network
+
+export interface MemberProfile {
+  occupation: string | null;
+  employer: string | null;
+  country: string | null;
+  city: string | null;
+  linkedinUrl: string | null;
+  bio: string | null;
+  isPublicInDirectory: boolean;
+}
+export const fetchMyProfile = () => api<MemberProfile>("/me/profile");
+export const updateMyProfile = (patch: Partial<MemberProfile>) =>
+  api<MemberProfile>("/me/profile", { method: "PATCH", body: JSON.stringify(patch) });
+
+export interface NetworkMember {
+  name: string;
+  tier: MembershipTierValue | null;
+  memberNumber: string | null;
+  occupation: string | null;
+  employer: string | null;
+  country: string | null;
+  city: string | null;
+  linkedinUrl: string | null;
+  bio: string | null;
+}
+export const fetchNetwork = (q?: string) => api<NetworkMember[]>(`/network${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+
+// ---------------------------------------------------------------- jobs
+
+export const AGILE_ROLE_LABEL: Record<string, string> = {
+  SCRUM_MASTER: "Scrum Master",
+  PRODUCT_OWNER: "Product Owner",
+  PRODUCT_MANAGER: "Product Manager",
+  AGILE_COACH: "Agile Coach",
+  RELEASE_TRAIN_ENGINEER: "Release Train Engineer",
+  DELIVERY_MANAGER: "Delivery / Project Manager",
+  BUSINESS_ANALYST: "Business Analyst",
+  AGILE_TRAINER: "Agile Trainer",
+  OTHER: "Other Agile role",
+};
+
+export const SENIORITY_LABEL: Record<string, string> = {
+  ENTRY: "Entry level",
+  MID: "Mid level",
+  SENIOR: "Senior",
+  LEAD: "Lead",
+  EXECUTIVE: "Executive",
+};
+
+export interface MemberJob {
+  id: string;
+  title: string;
+  company: string;
+  companyLogoUrl: string | null;
+  location: string | null;
+  isRemote: boolean;
+  employmentType: string | null;
+  summary: string | null;
+  applyUrl: string;
+  agileRole: string | null;
+  seniority: string | null;
+  postedAt: string | null;
+  source: { name: string };
+}
+export function fetchMemberJobs(q: { role?: string; remote?: boolean; q?: string; page?: number }) {
+  const p = new URLSearchParams();
+  if (q.role) p.set("role", q.role);
+  if (q.remote) p.set("remote", "true");
+  if (q.q) p.set("q", q.q);
+  if (q.page) p.set("page", String(q.page));
+  return api<{ total: number; page: number; pageSize: number; items: MemberJob[] }>(`/member-jobs?${p}`);
+}
+
+export interface AdminJobSource {
+  id: string;
+  name: string;
+  kind: string;
+  config: Record<string, unknown>;
+  isActive: boolean;
+  lastRunAt: string | null;
+  lastRunStatus: string | null;
+  lastRunMessage: string | null;
+  _count: { listings: number };
+}
+export interface AdminJobListing {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  isRemote: boolean;
+  summary: string | null;
+  applyUrl: string;
+  agileRole: string | null;
+  seniority: string | null;
+  aiConfidence: string | null;
+  status: string;
+  fetchedAt: string;
+  source: { name: string };
+}
+export const fetchJobSources = () => api<AdminJobSource[]>("/admin/jobs/sources");
+export const addJobSource = (body: { kind: "GREENHOUSE" | "LEVER"; name: string; handle: string }) =>
+  api<AdminJobSource>("/admin/jobs/sources", { method: "POST", body: JSON.stringify(body) });
+export const toggleJobSource = (id: string, isActive: boolean) =>
+  api<AdminJobSource>(`/admin/jobs/sources/${id}`, { method: "PATCH", body: JSON.stringify({ isActive }) });
+export const runJobCrawl = () =>
+  api<{ started: boolean; message?: string; ai?: boolean; summary?: Array<{ source: string; fetched: number; added: number; published: number; error?: string }> }>(
+    "/admin/jobs/run",
+    { method: "POST", body: JSON.stringify({}) },
+  );
+export const fetchAdminJobListings = (status: string) => api<AdminJobListing[]>(`/admin/jobs/listings?status=${status}`);
+export const reviewJobListing = (id: string, status: "PUBLISHED" | "REJECTED") =>
+  api(`/admin/jobs/listings/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });

@@ -46,8 +46,8 @@ export default function AdminAssessmentsPage() {
       <header className="shrink-0">
         <h1 className="text-lg font-semibold">Exam performance</h1>
         <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-          Only the free open-practice assessment exists today — there is no certification exam or certificate
-          issuance built yet.
+          Free competency tests and paid certification exams. Certificates are issued only for a passed
+          certification exam.
         </p>
       </header>
 

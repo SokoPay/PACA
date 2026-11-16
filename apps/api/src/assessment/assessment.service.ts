@@ -1,6 +1,9 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import type { AssessmentType, Difficulty, MembershipTier } from "@prisma/client";
 import { PrismaService } from "../common/prisma.service";
 import { AuditService } from "../common/audit.service";
+import { NotificationsService } from "../common/notifications.service";
+import { paidAccess } from "../common/membership-access";
 import { CertificateService } from "../certificates/certificate.service";
 
 export interface RequestContext {
@@ -9,16 +12,18 @@ export interface RequestContext {
 }
 
 /**
- * The "PACA open assessment" — AssessmentType.FREE_OPEN in the schema: open to
- * everyone, no entitlement required. It exists so the published question bank
- * (built for CERTIFICATION exams) has somewhere to actually be used while the
- * paid, tier-gated certification flow isn't built yet. A pass earns a Udemy-style
- * completion certificate (see CertificateService) — not a formal PACA
- * certification, which still needs the CERTIFICATION flow to exist.
+ * Two kinds of sitting share this engine:
+ *
+ *  - FREE_OPEN — the free competency test. Every registered user, no
+ *    certificate. Afterwards the member sees what they got wrong AND the correct
+ *    answers with explanations, because its job is learning.
+ *  - CERTIFICATION — the paid exam for the member's tier. Needs an active
+ *    membership and a remaining attempt (ExamEntitlement). A pass issues the
+ *    PACA certificate. The answer key is never revealed, so the exam stays fair.
  */
-const QUESTION_COUNT = 20;
-const DURATION_MINS = 30;
-const PASS_MARK_BPS = 7000; // 70% — a practice threshold, not a certification one
+const FREE_QUESTION_COUNT = 20;
+const FREE_DURATION_MINS = 30;
+const FREE_PASS_MARK_BPS = 7000;
 
 /** Deterministic PRNG so a completed attempt's shuffle is reproducible from its seed. */
 function mulberry32(seed: number) {
@@ -41,11 +46,8 @@ function seededShuffle<T>(items: T[], rand: () => number): T[] {
   return arr;
 }
 
-/**
- * Competency band for the free test. Advisory only — it helps a member judge which
- * membership type and study material fit them; it is not a certification result.
- */
-function competencyFor(scoreBps: number) {
+/** Advisory competency band for the free test. */
+export function competencyFor(scoreBps: number) {
   if (scoreBps >= 8500)
     return { level: "Advanced", advice: "Strong, broad Agile knowledge. The Professional or Executive membership suits you." };
   if (scoreBps >= 7000)
@@ -66,19 +68,12 @@ export class AssessmentService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly certificates: CertificateService,
+    private readonly notifications: NotificationsService,
   ) {}
 
-  private questionSelect() {
-    return {
-      id: true,
-      stem: true,
-      kind: true,
-      difficulty: true,
-      options: { select: { id: true, text: true, sortOrder: true } },
-    } as const;
-  }
+  // ------------------------------------------------------------------ shared
 
-  /** Shapes one AttemptQuestion for the client — never includes isCorrect. */
+  /** Shapes the questions for the candidate — never includes isCorrect. */
   private async presentAttempt(attemptId: string) {
     const rows = await this.prisma.attemptQuestion.findMany({
       where: { attemptId },
@@ -86,8 +81,9 @@ export class AssessmentService {
       select: {
         position: true,
         selectedOptionIds: true,
-        answeredAt: true,
-        question: { select: this.questionSelect() },
+        question: {
+          select: { id: true, stem: true, kind: true, options: { select: { id: true, text: true, sortOrder: true } } },
+        },
       },
     });
 
@@ -104,6 +100,25 @@ export class AssessmentService {
     }));
   }
 
+  private async toAttemptView(attempt: {
+    id: string;
+    type: AssessmentType;
+    status: string;
+    expiresAt: Date;
+    questionCount: number;
+    durationMins: number;
+  }) {
+    return {
+      id: attempt.id,
+      type: attempt.type,
+      status: attempt.status,
+      expiresAt: attempt.expiresAt,
+      questionCount: attempt.questionCount,
+      durationMins: attempt.durationMins,
+      questions: await this.presentAttempt(attempt.id),
+    };
+  }
+
   /** Auto-finalizes an attempt that ran out of time. Idempotent. */
   private async finalizeIfExpired(attemptId: string) {
     const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } });
@@ -113,9 +128,8 @@ export class AssessmentService {
   }
 
   private async score(attemptId: string, status: "SUBMITTED" | "EXPIRED") {
-    // Atomic claim: only one caller may move an attempt out of IN_PROGRESS. A
-    // double-clicked submit, or a submit racing the expiry check, would otherwise
-    // score the same attempt twice and could issue two certificates.
+    // Atomic claim: only one caller may move an attempt out of IN_PROGRESS, so a
+    // double-clicked submit can't score twice or issue two certificates.
     const claimed = await this.prisma.attempt.updateMany({
       where: { id: attemptId, status: "IN_PROGRESS" },
       data: { status, submittedAt: new Date() },
@@ -133,14 +147,13 @@ export class AssessmentService {
     for (const aq of questions) {
       const correctIds = new Set(aq.question.options.filter((o) => o.isCorrect).map((o) => o.id));
       const selected = new Set(aq.selectedOptionIds);
-      const isCorrect =
-        selected.size === correctIds.size && [...selected].every((id) => correctIds.has(id));
+      const isCorrect = selected.size === correctIds.size && [...selected].every((id) => correctIds.has(id));
       if (isCorrect) correctCount++;
       await this.prisma.attemptQuestion.update({ where: { id: aq.id }, data: { isCorrect } });
     }
 
     const attempt = await this.prisma.attempt.findUniqueOrThrow({ where: { id: attemptId } });
-    const scoreBps = Math.round((correctCount / attempt.questionCount) * 10000);
+    const scoreBps = attempt.questionCount ? Math.round((correctCount / attempt.questionCount) * 10000) : 0;
     const passed = scoreBps >= attempt.passMarkBps;
 
     const updated = await this.prisma.attempt.update({
@@ -148,138 +161,56 @@ export class AssessmentService {
       data: { scoreBps, correctCount, passed },
     });
 
-    if (passed) {
-      // Best-effort: a certificate-issuance failure must not undo a legitimate pass.
-      await this.certificates.issueForAttempt(attemptId).catch(() => {});
+    // Certificates are earned only through the paid certification exam.
+    if (attempt.type === "CERTIFICATION") {
+      if (passed) {
+        try {
+          const cert = await this.certificates.issueForAttempt(attemptId);
+          await this.prisma.attempt.update({ where: { id: attemptId }, data: { certificateIssued: true } });
+          await this.notifications.notify(attempt.userId, {
+            kind: "CERTIFICATE",
+            title: "Congratulations — you are PACA certified!",
+            body: `You passed the certification exam with ${Math.round(scoreBps / 100)}%. Your certificate (${cert.credentialId}) is ready to download and share.`,
+            link: "/certificates",
+          });
+        } catch {
+          // Issuance failure must not undo a legitimate pass; it can be re-issued.
+        }
+      } else {
+        await this.notifications.notify(attempt.userId, {
+          kind: "ASSESSMENT",
+          title: "Certification exam result",
+          body: `You scored ${Math.round(scoreBps / 100)}% (pass mark ${Math.round(attempt.passMarkBps / 100)}%). Review the member library and try again.`,
+          link: "/exam",
+        });
+      }
     }
 
     return updated;
   }
 
-  async getActive(userId: string) {
-    const attempt = await this.prisma.attempt.findFirst({
-      where: { userId, type: "FREE_OPEN", status: "IN_PROGRESS" },
-      orderBy: { startedAt: "desc" },
-    });
-    if (!attempt) return null;
-
-    const current = await this.finalizeIfExpired(attempt.id);
-    if (!current || current.status !== "IN_PROGRESS") return null;
-    return this.toAttemptView(current);
-  }
-
-  private async toAttemptView(attempt: { id: string; status: string; expiresAt: Date; questionCount: number; durationMins: number }) {
-    return {
-      id: attempt.id,
-      status: attempt.status,
-      expiresAt: attempt.expiresAt,
-      questionCount: attempt.questionCount,
-      durationMins: attempt.durationMins,
-      questions: await this.presentAttempt(attempt.id),
-    };
-  }
-
-  /** Starts a new sitting, or hands back the current one if already in progress. */
-  async start(userId: string, ctx: RequestContext) {
-    const existing = await this.getActive(userId);
-    if (existing) return existing;
-
-    const today = todayDateOnly();
-    const seenTodayIds = (
-      await this.prisma.questionExposure.findMany({ where: { userId, servedOn: today }, select: { questionId: true } })
-    ).map((e) => e.questionId);
-
-    const eligible = await this.prisma.question.findMany({
-      where: { status: "PUBLISHED", id: { notIn: seenTodayIds } },
-      select: { id: true },
-    });
-
-    if (eligible.length === 0) {
-      throw new ConflictException("You have already seen today's question pool — come back tomorrow for a fresh set.");
-    }
-
-    const seed = Math.floor(Math.random() * 2 ** 31);
-    const rand = mulberry32(seed);
-    const chosenIds = seededShuffle(eligible, rand)
-      .slice(0, Math.min(QUESTION_COUNT, eligible.length))
-      .map((q) => q.id);
-
-    const previousAttempts = await this.prisma.attempt.count({ where: { userId, type: "FREE_OPEN" } });
-    const now = new Date();
-
-    const attempt = await this.prisma.attempt.create({
-      data: {
-        userId,
-        type: "FREE_OPEN",
-        tier: null,
-        entitlementId: null,
-        attemptNumber: previousAttempts + 1,
-        status: "IN_PROGRESS",
-        questionCount: chosenIds.length,
-        passMarkBps: PASS_MARK_BPS,
-        durationMins: DURATION_MINS,
-        // FREE_OPEN draws across all difficulties — there is no single-tier
-        // difficulty to snapshot here, so this is a nominal placeholder only.
-        difficulty: "FOUNDATION",
-        seed: String(seed),
-        startedAt: now,
-        expiresAt: new Date(now.getTime() + DURATION_MINS * 60_000),
-        ipAddress: ctx.ipAddress,
-        userAgent: ctx.userAgent,
-      },
-    });
-
-    await this.prisma.attemptQuestion.createMany({
-      data: chosenIds.map((questionId, i) => ({
-        attemptId: attempt.id,
-        questionId,
-        position: i,
-        // Options are presented in the question's own sortOrder rather than a
-        // per-attempt shuffle — optionOrder is left empty; anti-memorization
-        // shuffling can be added later without a schema change.
-        optionOrder: [],
-      })),
-    });
-
-    await this.prisma.questionExposure.createMany({
-      data: chosenIds.map((questionId) => ({ userId, questionId, servedOn: today })),
-      skipDuplicates: true,
-    });
-
-    await this.audit.record({
-      actorUserId: userId,
-      action: "assessment.started",
-      entityType: "Attempt",
-      entityId: attempt.id,
-      metadata: { questionCount: chosenIds.length },
-      ipAddress: ctx.ipAddress,
-      userAgent: ctx.userAgent,
-    });
-
-    return this.toAttemptView(attempt);
+  private async findOwned(userId: string, attemptId: string) {
+    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } });
+    if (!attempt || attempt.userId !== userId) throw new NotFoundException("Attempt not found");
+    return attempt;
   }
 
   async getOne(userId: string, attemptId: string) {
-    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } });
-    if (!attempt || attempt.userId !== userId) throw new NotFoundException("Attempt not found");
-
+    const attempt = await this.findOwned(userId, attemptId);
     const current = attempt.status === "IN_PROGRESS" ? await this.finalizeIfExpired(attemptId) : attempt;
     if (!current) throw new NotFoundException("Attempt not found");
-
     if (current.status === "IN_PROGRESS") return this.toAttemptView(current);
     return this.resultView(current.id);
   }
 
-  async answer(userId: string, attemptId: string, questionId: string, selectedOptionIds: string[], ctx: RequestContext) {
-    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } });
-    if (!attempt || attempt.userId !== userId) throw new NotFoundException("Attempt not found");
+  async answer(userId: string, attemptId: string, questionId: string, selectedOptionIds: string[]) {
+    const attempt = await this.findOwned(userId, attemptId);
     if (attempt.status !== "IN_PROGRESS") throw new BadRequestException("This attempt is no longer in progress");
     if (attempt.expiresAt.getTime() <= Date.now()) {
       await this.finalizeIfExpired(attemptId);
       throw new BadRequestException("Time is up — this attempt has been submitted automatically");
     }
 
-    // Only questions actually drawn for this attempt can be answered.
     const slot = await this.prisma.attemptQuestion.findUnique({
       where: { attemptId_questionId: { attemptId, questionId } },
       include: { question: { include: { options: true } } },
@@ -294,38 +225,294 @@ export class AssessmentService {
       where: { attemptId_questionId: { attemptId, questionId } },
       data: { selectedOptionIds: [...new Set(selectedOptionIds)], answeredAt: new Date() },
     });
-
     return { saved: true };
   }
 
   async submit(userId: string, attemptId: string, ctx: RequestContext) {
-    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } });
-    if (!attempt || attempt.userId !== userId) throw new NotFoundException("Attempt not found");
+    const attempt = await this.findOwned(userId, attemptId);
     if (attempt.status !== "IN_PROGRESS") throw new BadRequestException("This attempt is no longer in progress");
 
     await this.score(attemptId, "SUBMITTED");
-
     await this.audit.record({
       actorUserId: userId,
-      action: "assessment.submitted",
+      action: attempt.type === "CERTIFICATION" ? "exam.submitted" : "assessment.submitted",
       entityType: "Attempt",
       entityId: attemptId,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
     });
-
     return this.resultView(attemptId);
   }
 
-  /**
-   * Result for a finished attempt. A pass earns a certificate, so the answer key
-   * (which options are correct, and the explanations that give them away) never
-   * leaves the server — otherwise a candidate could fail once, read the key, and
-   * pass on the next sitting from memory. Candidates see only their own choices
-   * and whether each question was right.
-   */
+  private async activeOf(userId: string, type: AssessmentType) {
+    const attempt = await this.prisma.attempt.findFirst({
+      where: { userId, type, status: "IN_PROGRESS" },
+      orderBy: { startedAt: "desc" },
+    });
+    if (!attempt) return null;
+    const current = await this.finalizeIfExpired(attempt.id);
+    if (!current || current.status !== "IN_PROGRESS") return null;
+    return this.toAttemptView(current);
+  }
+
+  private async createAttempt(input: {
+    userId: string;
+    type: AssessmentType;
+    tier: MembershipTier | null;
+    entitlementId: string | null;
+    questionIds: string[];
+    passMarkBps: number;
+    durationMins: number;
+    difficulty: Difficulty;
+    seed: number;
+    ctx: RequestContext;
+  }) {
+    const previous = await this.prisma.attempt.count({ where: { userId: input.userId, type: input.type } });
+    const now = new Date();
+    const attempt = await this.prisma.attempt.create({
+      data: {
+        userId: input.userId,
+        type: input.type,
+        tier: input.tier,
+        entitlementId: input.entitlementId,
+        attemptNumber: previous + 1,
+        status: "IN_PROGRESS",
+        questionCount: input.questionIds.length,
+        passMarkBps: input.passMarkBps,
+        durationMins: input.durationMins,
+        difficulty: input.difficulty,
+        seed: String(input.seed),
+        startedAt: now,
+        expiresAt: new Date(now.getTime() + input.durationMins * 60_000),
+        ipAddress: input.ctx.ipAddress,
+        userAgent: input.ctx.userAgent,
+      },
+    });
+
+    await this.prisma.attemptQuestion.createMany({
+      data: input.questionIds.map((questionId, i) => ({ attemptId: attempt.id, questionId, position: i, optionOrder: [] })),
+    });
+
+    await this.audit.record({
+      actorUserId: input.userId,
+      action: input.type === "CERTIFICATION" ? "exam.started" : "assessment.started",
+      entityType: "Attempt",
+      entityId: attempt.id,
+      metadata: { questionCount: input.questionIds.length, tier: input.tier },
+      ipAddress: input.ctx.ipAddress,
+      userAgent: input.ctx.userAgent,
+    });
+    return attempt;
+  }
+
+  // ------------------------------------------------------------------ free test
+
+  getActiveFree(userId: string) {
+    return this.activeOf(userId, "FREE_OPEN");
+  }
+
+  async startFree(userId: string, ctx: RequestContext) {
+    const existing = await this.getActiveFree(userId);
+    if (existing) return existing;
+
+    const today = todayDateOnly();
+    const seenTodayIds = (
+      await this.prisma.questionExposure.findMany({ where: { userId, servedOn: today }, select: { questionId: true } })
+    ).map((e) => e.questionId);
+
+    const eligible = await this.prisma.question.findMany({
+      where: { status: "PUBLISHED", id: { notIn: seenTodayIds } },
+      select: { id: true },
+    });
+    if (eligible.length === 0) {
+      throw new ConflictException("You have already seen today's question pool — come back tomorrow for a fresh set.");
+    }
+
+    const seed = Math.floor(Math.random() * 2 ** 31);
+    const questionIds = seededShuffle(eligible, mulberry32(seed))
+      .slice(0, Math.min(FREE_QUESTION_COUNT, eligible.length))
+      .map((q) => q.id);
+
+    const attempt = await this.createAttempt({
+      userId,
+      type: "FREE_OPEN",
+      tier: null,
+      entitlementId: null,
+      questionIds,
+      passMarkBps: FREE_PASS_MARK_BPS,
+      durationMins: FREE_DURATION_MINS,
+      difficulty: "FOUNDATION",
+      seed,
+      ctx,
+    });
+
+    await this.prisma.questionExposure.createMany({
+      data: questionIds.map((questionId) => ({ userId, questionId, servedOn: today })),
+      skipDuplicates: true,
+    });
+
+    return this.toAttemptView(attempt);
+  }
+
+  /** Makes a finished free-test result publicly viewable at /score/{id}. */
+  async share(userId: string, attemptId: string) {
+    const attempt = await this.findOwned(userId, attemptId);
+    if (attempt.type !== "FREE_OPEN") throw new BadRequestException("Only free test results can be shared");
+    if (attempt.status === "IN_PROGRESS") throw new BadRequestException("Finish the test before sharing your score");
+    if (!attempt.sharedAt) {
+      await this.prisma.attempt.update({ where: { id: attemptId }, data: { sharedAt: new Date() } });
+    }
+    return { id: attemptId };
+  }
+
+  /** Public view of a shared score: first name, initial, score and level only. */
+  async publicScore(attemptId: string) {
+    const attempt = await this.prisma.attempt.findUnique({
+      where: { id: attemptId },
+      include: { user: { select: { firstName: true, lastName: true } } },
+    });
+    if (!attempt || attempt.type !== "FREE_OPEN" || !attempt.sharedAt || attempt.status === "IN_PROGRESS") {
+      throw new NotFoundException("Shared result not found");
+    }
+    const scoreBps = attempt.scoreBps ?? 0;
+    return {
+      id: attempt.id,
+      name: `${attempt.user.firstName} ${attempt.user.lastName.charAt(0)}.`,
+      scoreBps,
+      correctCount: attempt.correctCount ?? 0,
+      questionCount: attempt.questionCount,
+      level: competencyFor(scoreBps).level,
+      takenAt: attempt.submittedAt ?? attempt.startedAt,
+    };
+  }
+
+  // ------------------------------------------------------------------ certification exam
+
+  /** What the /exam page needs: whether the member can sit, and on what terms. */
+  async examStatus(user: { id: string; role: string }) {
+    const access = await paidAccess(this.prisma, user);
+    const membership = await this.prisma.membership.findUnique({ where: { userId: user.id }, select: { tier: true, status: true } });
+    const tier = membership?.tier ?? null;
+    const config = tier ? await this.prisma.tierConfig.findUnique({ where: { tier } }) : null;
+
+    const certificate = tier
+      ? await this.prisma.certificate.findFirst({
+          where: { userId: user.id, tier, status: "VALID" },
+          select: { id: true, credentialId: true, issuedAt: true },
+          orderBy: { issuedAt: "desc" },
+        })
+      : null;
+
+    const entitlements = tier
+      ? await this.prisma.examEntitlement.findMany({
+          where: { userId: user.id, tier, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+          select: { attemptsGranted: true, attemptsUsed: true },
+        })
+      : [];
+    const attemptsRemaining = entitlements.reduce((n, e) => n + Math.max(0, e.attemptsGranted - e.attemptsUsed), 0);
+
+    const last = await this.prisma.attempt.findFirst({
+      where: { userId: user.id, type: "CERTIFICATION", status: { not: "IN_PROGRESS" } },
+      orderBy: { startedAt: "desc" },
+      select: { id: true, scoreBps: true, passed: true, submittedAt: true },
+    });
+
+    let reason: string | null = null;
+    if (!membership || membership.status !== "ACTIVE" || !access.active) {
+      reason = "The certification exam unlocks once your membership payment is complete.";
+    } else if (config && !config.requiresExam) {
+      reason = config.requiresPanel
+        ? "Your membership type is assessed by a panel, not a written exam."
+        : "Your membership type does not require an exam.";
+    } else if (certificate) {
+      reason = "You are already certified for your membership type.";
+    } else if (attemptsRemaining === 0) {
+      reason = "You have used all your exam attempts. Contact PACA to arrange more.";
+    }
+
+    return {
+      eligible: reason === null,
+      reason,
+      tier,
+      tierName: config?.displayName ?? null,
+      questionCount: config?.examQuestionCount ?? null,
+      durationMins: config?.examDurationMins ?? null,
+      passMarkBps: config?.passMarkBps ?? null,
+      attemptsRemaining,
+      certificate,
+      lastAttempt: last,
+      activeAttempt: await this.activeOf(user.id, "CERTIFICATION"),
+    };
+  }
+
+  async startExam(user: { id: string; role: string }, ctx: RequestContext) {
+    const active = await this.activeOf(user.id, "CERTIFICATION");
+    if (active) return active;
+
+    const status = await this.examStatus(user);
+    if (!status.eligible || !status.tier) throw new ForbiddenException(status.reason ?? "You cannot sit the exam yet");
+
+    const config = await this.prisma.tierConfig.findUniqueOrThrow({ where: { tier: status.tier } });
+
+    // Draw one attempt from the oldest entitlement that still has one. The
+    // conditional update makes two simultaneous starts unable to share an attempt.
+    const entitlements = await this.prisma.examEntitlement.findMany({
+      where: { userId: user.id, tier: status.tier, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+      orderBy: { createdAt: "asc" },
+    });
+    let entitlementId: string | null = null;
+    for (const e of entitlements) {
+      if (e.attemptsUsed >= e.attemptsGranted) continue;
+      const claimed = await this.prisma.examEntitlement.updateMany({
+        where: { id: e.id, attemptsUsed: e.attemptsUsed },
+        data: { attemptsUsed: { increment: 1 } },
+      });
+      if (claimed.count === 1) {
+        entitlementId = e.id;
+        break;
+      }
+    }
+    if (!entitlementId) throw new ForbiddenException("You have no exam attempts remaining.");
+
+    // Prefer questions at the tier's difficulty; top up from the rest of the bank.
+    const atLevel = await this.prisma.question.findMany({
+      where: { status: "PUBLISHED", difficulty: config.difficulty },
+      select: { id: true },
+    });
+    const others = await this.prisma.question.findMany({
+      where: { status: "PUBLISHED", difficulty: { not: config.difficulty } },
+      select: { id: true },
+    });
+    const seed = Math.floor(Math.random() * 2 ** 31);
+    const rand = mulberry32(seed);
+    const pool = [...seededShuffle(atLevel, rand), ...seededShuffle(others, rand)];
+    const questionIds = pool.slice(0, Math.min(config.examQuestionCount, pool.length)).map((q) => q.id);
+    if (questionIds.length === 0) {
+      // Give the attempt back — nothing was sat.
+      await this.prisma.examEntitlement.update({ where: { id: entitlementId }, data: { attemptsUsed: { decrement: 1 } } });
+      throw new ConflictException("The exam question bank is not ready yet. Please try again later.");
+    }
+
+    const attempt = await this.createAttempt({
+      userId: user.id,
+      type: "CERTIFICATION",
+      tier: status.tier,
+      entitlementId,
+      questionIds,
+      passMarkBps: config.passMarkBps,
+      durationMins: config.examDurationMins,
+      difficulty: config.difficulty,
+      seed,
+      ctx,
+    });
+    return this.toAttemptView(attempt);
+  }
+
+  // ------------------------------------------------------------------ results
+
   private async resultView(attemptId: string) {
     const attempt = await this.prisma.attempt.findUniqueOrThrow({ where: { id: attemptId } });
+    const reveal = attempt.type === "FREE_OPEN";
 
     const rows = await this.prisma.attemptQuestion.findMany({
       where: { attemptId },
@@ -334,14 +521,14 @@ export class AssessmentService {
         question: {
           select: {
             stem: true,
+            explanation: true,
             topic: { select: { name: true } },
-            options: { select: { id: true, text: true, sortOrder: true } },
+            options: { select: { id: true, text: true, sortOrder: true, isCorrect: true } },
           },
         },
       },
     });
 
-    // Per-topic score, so the member knows what to study.
     const byTopic = new Map<string, { topic: string; correct: number; total: number }>();
     for (const r of rows) {
       const name = r.question.topic?.name ?? "General";
@@ -351,30 +538,37 @@ export class AssessmentService {
       byTopic.set(name, t);
     }
 
-    const certificate = attempt.passed
-      ? await this.prisma.certificate.findUnique({ where: { attemptId }, select: { id: true, credentialId: true } })
-      : null;
+    const certificate =
+      attempt.type === "CERTIFICATION" && attempt.passed
+        ? await this.prisma.certificate.findUnique({ where: { attemptId }, select: { id: true, credentialId: true } })
+        : null;
 
     return {
       id: attempt.id,
+      type: attempt.type,
       status: attempt.status,
       questionCount: attempt.questionCount,
       correctCount: attempt.correctCount,
       scoreBps: attempt.scoreBps,
       passed: attempt.passed,
       passMarkBps: attempt.passMarkBps,
+      sharedAt: attempt.sharedAt,
       certificate,
       competency: competencyFor(attempt.scoreBps ?? 0),
       topics: [...byTopic.values()].sort((a, b) => a.correct / a.total - b.correct / b.total),
-      review: rows.map((r) => ({
-        stem: r.question.stem,
-        isCorrect: r.isCorrect,
-        selectedOptionIds: r.selectedOptionIds,
-        options: r.question.options
-          .slice()
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((o) => ({ id: o.id, text: o.text })),
-      })),
+      // The free test teaches: correct answers and explanations are included.
+      // The certification exam never reveals its key.
+      review: rows.map((r) => {
+        const options = r.question.options.slice().sort((a, b) => a.sortOrder - b.sortOrder);
+        return {
+          stem: r.question.stem,
+          isCorrect: r.isCorrect,
+          selectedOptionIds: r.selectedOptionIds,
+          options: options.map((o) => ({ id: o.id, text: o.text })),
+          correctOptionIds: reveal ? options.filter((o) => o.isCorrect).map((o) => o.id) : null,
+          explanation: reveal ? r.question.explanation : null,
+        };
+      }),
     };
   }
 }

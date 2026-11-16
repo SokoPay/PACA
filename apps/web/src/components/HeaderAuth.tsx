@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { logout } from "@/lib/api";
+import { fetchNotifications, logout } from "@/lib/api";
+import { onNotificationsChanged } from "@/lib/notificationEvents";
 import { useSession } from "@/lib/useSession";
 
 /** Right-hand side of the site header: Sign in / Join, or the member's profile menu. */
@@ -12,7 +13,26 @@ export function HeaderAuth() {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Unread count for the bell: on sign-in, on navigation, and every 2 minutes.
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    const refresh = () =>
+      fetchNotifications()
+        .then((n) => alive && setUnread(n.unread))
+        .catch(() => {});
+    void refresh();
+    const t = setInterval(refresh, 120_000);
+    const off = onNotificationsChanged(() => void refresh());
+    return () => {
+      alive = false;
+      clearInterval(t);
+      off();
+    };
+  }, [user, pathname]);
 
   // Close on navigation, outside click and Escape.
   useEffect(() => setOpen(false), [pathname]);
@@ -55,7 +75,23 @@ export function HeaderAuth() {
   const item = "block rounded-md px-3 py-2 text-sm transition hover:bg-paca-50 hover:text-paca-600";
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative flex items-center gap-2">
+      <Link
+        href="/notifications"
+        aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+        className="relative flex h-9 w-9 items-center justify-center rounded-full border transition hover:border-paca-500 hover:text-paca-500"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+        </svg>
+        {unread > 0 && (
+          <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </Link>
       <button
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
@@ -75,7 +111,7 @@ export function HeaderAuth() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full mt-2 w-64 rounded-xl border p-1 shadow-lg"
+          className="absolute right-0 top-full z-40 mt-2 w-64 rounded-xl border p-1 shadow-lg"
           style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
           <div className="border-b px-3 py-2.5" style={{ borderColor: "var(--border)" }}>
@@ -99,6 +135,16 @@ export function HeaderAuth() {
           </Link>
           <Link href="/certificates" role="menuitem" className={item}>
             My certificates
+          </Link>
+          <Link href="/notifications" role="menuitem" className={`${item} flex items-center justify-between`}>
+            Notifications
+            {unread > 0 && <span className="rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">{unread}</span>}
+          </Link>
+          <Link href="/dashboard/profile" role="menuitem" className={item}>
+            My profile
+          </Link>
+          <Link href="/exam" role="menuitem" className={item}>
+            Certification exam
           </Link>
           <Link href="/assessment" role="menuitem" className={item}>
             Free competency test

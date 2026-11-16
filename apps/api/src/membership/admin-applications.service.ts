@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { Prisma, type ApplicationStatus, type MembershipTier } from "@prisma/client";
 import { PrismaService } from "../common/prisma.service";
 import { AuditService } from "../common/audit.service";
+import { NotificationsService } from "../common/notifications.service";
 
 export interface RequestContext {
   ipAddress?: string | null;
@@ -23,6 +24,7 @@ export class AdminApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(q: ListApplicationsQuery) {
@@ -100,6 +102,13 @@ export class AdminApplicationsService {
       metadata: { tier: application.tier },
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
+    });
+
+    await this.notifications.notify(application.userId, {
+      kind: "MEMBERSHIP",
+      title: "Your membership application is approved",
+      body: "Welcome to PACA! Pay your subscription to unlock your certification exam, study library, badge and member discounts.",
+      link: "/dashboard",
     });
 
     return updated;
@@ -190,6 +199,13 @@ export class AdminApplicationsService {
       metadata: { reason },
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
+    });
+
+    await this.notifications.notify(application.userId, {
+      kind: "MEMBERSHIP",
+      title: "Update on your membership application",
+      body: `Your application was not approved: ${reason} You can update it and submit again.`,
+      link: "/dashboard",
     });
 
     return updated;

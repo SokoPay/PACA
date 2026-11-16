@@ -6,6 +6,7 @@ import { AuditService } from "../common/audit.service";
 import { loadEnv } from "../config/env";
 import { PaystackClient, type VerifiedTransaction } from "./paystack.client";
 import { requireVerifiedEmail } from "../common/require-verified-email";
+import { NotificationsService } from "../common/notifications.service";
 
 export interface RequestContext {
   ipAddress?: string | null;
@@ -29,6 +30,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly paystack: PaystackClient,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -302,6 +304,12 @@ export class PaymentsService {
     });
 
     if (activated) {
+      await this.notifications.notify(payment.userId, {
+        kind: "PAYMENT",
+        title: "Payment received — your membership is active",
+        body: "Your member badge, study library, certification exam and member discounts are now unlocked.",
+        link: "/dashboard",
+      });
       await this.audit.record({
         actorUserId: payment.userId,
         action: "membership.activated",

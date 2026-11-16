@@ -45,7 +45,8 @@ const NAV: Array<{ label: string; href: string; children?: Array<{ label: string
     label: "Learning resources",
     href: "/assessment",
     children: [
-      { label: "PACA open assessment", href: "/assessment" },
+      { label: "Free competency test", href: "/assessment" },
+      { label: "Certification exam", href: "/exam" },
       { label: "Digital library", href: "/library" },
     ],
   },
@@ -54,6 +55,7 @@ const NAV: Array<{ label: string; href: string; children?: Array<{ label: string
     href: "/community",
     children: [
       { label: "Professional database", href: "/directory" },
+      { label: "Professional network", href: "/dashboard/network" },
       { label: "Questions & answers", href: "/faq" },
       { label: "Jobs", href: "/jobs" },
     ],
@@ -67,7 +69,8 @@ export function SiteHeader() {
       style={{ background: "color-mix(in srgb, var(--surface) 92%, transparent)", borderColor: "var(--border)" }}
     >
       <div className="relative mx-auto flex max-w-6xl items-center gap-6 px-5 py-3">
-        <Link href="/" className="text-xl font-bold tracking-tight text-paca-500">
+        <Link href="/" className="flex items-center gap-2 text-xl font-extrabold tracking-tight text-paca-600" aria-label="PACA home">
+          <PacaMark />
           PACA
         </Link>
 
@@ -117,7 +120,10 @@ export function SiteFooter() {
     <footer className="mt-20 border-t" style={{ borderColor: "var(--border)" }}>
       <div className="mx-auto grid max-w-6xl gap-8 px-5 py-12 sm:grid-cols-2 md:grid-cols-4">
         <div>
-          <div className="text-lg font-bold text-paca-500">PACA</div>
+          <div className="flex items-center gap-2 text-lg font-extrabold text-paca-600">
+            <PacaMark />
+            PACA
+          </div>
           <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
             Professional Agile Certification &mdash; Africa. Setting benchmark standards for the Agile profession.
           </p>
@@ -135,7 +141,9 @@ export function SiteFooter() {
         <div>
           <h3 className="text-sm font-semibold">Learning</h3>
           <ul className="mt-2 space-y-1.5 text-sm" style={{ color: "var(--text-muted)" }}>
-            <li><Link href="/assessment" className="hover:text-paca-500">Open assessment</Link></li>
+            <li><Link href="/assessment" className="hover:text-paca-500">Free competency test</Link></li>
+            <li><Link href="/courses" className="hover:text-paca-500">Partner courses</Link></li>
+            <li><Link href="/jobs" className="hover:text-paca-500">Agile jobs</Link></li>
             <li><Link href="/library" className="hover:text-paca-500">Digital library</Link></li>
             <li><Link href="/partners" className="hover:text-paca-500">Partners</Link></li>
           </ul>
@@ -172,5 +180,23 @@ export function SiteFooter() {
         &copy; {new Date().getFullYear()} Professional Agile Certification &mdash; Africa. All rights reserved.
       </div>
     </footer>
+  );
+}
+
+/** The PACA "P" mark (same artwork as the favicon). */
+export function PacaMark({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden>
+      <defs>
+        <linearGradient id="paca-mark" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#0a2a66" />
+          <stop offset="0.55" stopColor="#0060cc" />
+          <stop offset="1" stopColor="#2b9bff" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="14" fill="url(#paca-mark)" />
+      <path d="M20 50V14h14.5c7.6 0 12.5 4.6 12.5 11.4S42.1 37 34.5 37H27.6v13H20zm7.6-19.6h6.2c3.4 0 5.5-1.9 5.5-5s-2.1-5-5.5-5h-6.2v10z" fill="#fff" />
+      <circle cx="47" cy="47" r="5" fill="#f2b134" />
+    </svg>
   );
 }

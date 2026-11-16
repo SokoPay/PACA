@@ -1,52 +1,55 @@
-import { fetchDirectory } from "@/lib/api";
+import Image from "next/image";
+import Link from "next/link";
+import { TIER_LABEL, fetchDirectory } from "@/lib/api";
+import { badgeFor } from "@/lib/brand";
 
 export const metadata = {
   title: "Professional database",
-  description: "PACA members who have opted in to appear in the public professional directory.",
+  description: "PACA members in good standing who chose to be listed.",
 };
+
+export const dynamic = "force-dynamic";
 
 export default async function DirectoryPage() {
   const people = await fetchDirectory().catch(() => []);
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-16">
+    <main className="mx-auto max-w-5xl px-5 py-16">
       <h1 className="text-3xl font-bold tracking-tight">Professional database</h1>
-      <p className="mt-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>
-        Members who have opted in to appear here. Sign in and update your profile to be listed.
+      <p className="mt-3 max-w-2xl leading-relaxed" style={{ color: "var(--text-muted)" }}>
+        PACA members in good standing who chose to be listed. Each badge links to the member&rsquo;s verified badge page.
+        Paid members can see full profiles and LinkedIn links in the{" "}
+        <Link href="/dashboard/network" className="font-semibold text-paca-500 hover:underline">professional network</Link>.
       </p>
 
       {people.length === 0 ? (
-        <p className="mt-10 text-sm" style={{ color: "var(--text-muted)" }}>
-          No members have opted in to the public directory yet.
-        </p>
+        <p className="mt-10 text-sm" style={{ color: "var(--text-muted)" }}>No members are listed yet.</p>
       ) : (
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {people.map((p, i) => (
-            <div key={i} className="rounded-xl border p-5" style={{ borderColor: "var(--border)" }}>
-              <h2 className="font-semibold">
-                {p.user.firstName} {p.user.lastName}
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-                {[p.occupation, p.employer].filter(Boolean).join(" at ") || p.institution || ""}
-                {p.country ? ` · ${p.country}` : ""}
-              </p>
-              {p.bio && (
-                <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  {p.bio}
-                </p>
-              )}
-              {p.linkedinUrl && (
-                <a
-                  href={p.linkedinUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-block text-sm text-paca-500 hover:underline"
-                >
-                  LinkedIn &rarr;
-                </a>
-              )}
-            </div>
-          ))}
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {people.map((p, i) => {
+            const tier = p.user.membership?.tier;
+            const badge = tier ? badgeFor(tier) : undefined;
+            const card = (
+              <div className="flex h-full items-center gap-4 rounded-2xl border p-4 transition hover:border-paca-500" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+                {badge ? (
+                  <Image src={badge.image} alt="" width={64} height={54} className="h-[54px] w-16 shrink-0 rounded-lg object-contain" />
+                ) : (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-paca-500 font-bold text-white">{p.user.firstName.charAt(0)}</div>
+                )}
+                <div className="min-w-0">
+                  <h2 className="truncate font-semibold">{p.user.firstName} {p.user.lastName}</h2>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    {[tier ? TIER_LABEL[tier] : null, p.occupation, p.country].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+              </div>
+            );
+            return p.user.membership ? (
+              <Link key={i} href={`/members/${p.user.membership.memberNumber}`}>{card}</Link>
+            ) : (
+              <div key={i}>{card}</div>
+            );
+          })}
         </div>
       )}
     </main>

@@ -24,10 +24,8 @@ export class CertificateService {
    * attempt can only ever have one certificate (Certificate.attemptId is
    * unique), so a second call for the same attempt just returns the first one.
    *
-   * This is a Udemy-style "certificate of completion", not a formal PACA
-   * certification: FREE_OPEN attempts have no tier, so `tier` and `designation`
-   * are left null. Real MPACA/FPACA certification needs the paid, tier-gated
-   * CERTIFICATION exam flow, which does not exist yet.
+   * Only a passed CERTIFICATION exam (paid members, their own tier) earns one;
+   * the free competency test never does.
    */
   async issueForAttempt(attemptId: string) {
     const existing = await this.prisma.certificate.findUnique({ where: { attemptId } });
@@ -37,6 +35,10 @@ export class CertificateService {
       where: { id: attemptId },
       include: { user: { select: { firstName: true, lastName: true } } },
     });
+    if (attempt.type !== "CERTIFICATION" || !attempt.passed || !attempt.tier) {
+      throw new Error("Certificates are issued only for a passed certification exam");
+    }
+    const config = await this.prisma.tierConfig.findUnique({ where: { tier: attempt.tier }, select: { designation: true } });
 
     let credentialId = this.generateCredentialId();
     // Vanishingly unlikely, but the field is unique — retry rather than crash.
@@ -51,7 +53,8 @@ export class CertificateService {
         userId: attempt.userId,
         attemptId: attempt.id,
         credentialId,
-        tier: null,
+        tier: attempt.tier,
+        designation: config?.designation ?? null,
         holderName: `${attempt.user.firstName} ${attempt.user.lastName}`,
         scoreBps: attempt.scoreBps,
         status: "VALID",
@@ -112,7 +115,7 @@ export class CertificateService {
       .fontSize(14)
       .text("PROFESSIONAL AGILE CERTIFICATION — AFRICA", 0, 90, { align: "center" });
 
-    doc.font("Helvetica").fontSize(22).fillColor(gold).text("Certificate of Completion", 0, 130, { align: "center" });
+    doc.font("Helvetica").fontSize(22).fillColor(gold).text(cert.tier ? "Certificate of Certification" : "Certificate of Completion", 0, 130, { align: "center" });
 
     doc.fillColor(ink).font("Helvetica").fontSize(13).text("This certifies that", 0, 190, { align: "center" });
 

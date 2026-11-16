@@ -233,6 +233,35 @@ is enough for card payments.
 own test card and test mobile money options. A simple test card is
 `4084 0840 8408 4081`, any future expiry, CVV `408`.
 
+## Assessments, certificates and member benefits
+
+- **Free competency test** (`/assessment`): every registered user. No certificate.
+  Afterwards the member sees a congratulation, their level, a score per topic,
+  and every question they missed with the correct answer and explanation. They
+  can share their score (`/score/<id>`, with a social preview image).
+- **Certification exam** (`/exam`): paid members only, for their own membership
+  type (question count, time and pass mark from the tier settings). Each exam
+  uses one attempt from the attempts granted with the payment. A pass issues the
+  PACA certificate; exam answers are never revealed. **Note:** both use the same
+  question bank, so questions seen in the free test can appear in the exam. Keep
+  growing the bank (Admin → Review queue) so that matters less.
+- **Member badge**: active members see their badge on the dashboard with "Add to
+  LinkedIn profile", download, and share buttons. The public badge page
+  `/members/<member number>` shows name, type and standing (no contact details).
+- **Announcements** (Admin → Announcements): to everyone, paid members, or chosen
+  membership types. They show on dashboards and in the notification bell, along
+  with automatic notifications (application decision, payment, exam result).
+- **Agile job board** (`/dashboard/jobs`, paid members): crawled every
+  `JOBS_CRAWL_HOURS` (default 12) from Jobicy and Arbeitnow, plus any company
+  Greenhouse/Lever boards added in Admin → Job board. Titles that look Agile are
+  classified by Claude (`AI_MODEL`, default `claude-opus-5-5`, needs
+  `ANTHROPIC_API_KEY`); confident matches publish, uncertain ones wait for review.
+  Without an API key a keyword fallback is used. Remotive is not used: its terms
+  forbid showing its jobs behind a membership.
+- **Professional network** (`/dashboard/network`, paid members) from profiles the
+  member opts in at `/dashboard/profile`. The public `/directory` shows only name,
+  role, country and badge.
+
 ## Partner courses and member discounts
 
 **Explore courses** (`/courses`) lists the training partners (Scrum.org,

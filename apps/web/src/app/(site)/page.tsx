@@ -2,15 +2,25 @@ import Link from "next/link";
 import Image from "next/image";
 import { fetchTiers, formatUsd, type TierInfo } from "@/lib/api";
 import { BADGES, PARTNERS } from "@/lib/brand";
+import { PARTNER_COURSES } from "@/lib/catalog";
 
 export const metadata = {
-  title: "PACA — Professional Agile Certification, Africa",
+  title: { absolute: "PACA — Professional Agile Certification, Africa" },
   description:
     "PACA sets benchmark standards for the Agile profession in Africa, certifying practitioners in Agile, Scrum, Kanban and DevOps.",
 };
 
 /** Rendered per request so tier prices always match the database. */
 export const dynamic = "force-dynamic";
+
+const BENEFITS = [
+  { icon: "🎓", title: "Recognised certification", body: "Sit the exam for your level and earn a verifiable PACA certificate." },
+  { icon: "🏅", title: "Shareable digital badge", body: "Add it to LinkedIn and share it anywhere — employers can verify it online." },
+  { icon: "📚", title: "Study library", body: "PDF books and guides chosen for your membership type." },
+  { icon: "💼", title: "Agile job board", body: "Scrum Master, Product Owner and coaching roles, screened and updated daily." },
+  { icon: "🏷️", title: "Course & event discounts", body: "Member pricing on Scrum.org, ProKanban.org and Scrum Alliance courses." },
+  { icon: "🤝", title: "Professional network", body: "Meet Agile practitioners across Africa and grow your career together." },
+];
 
 export default async function HomePage() {
   let tiers: TierInfo[] = [];
@@ -22,165 +32,220 @@ export default async function HomePage() {
 
   return (
     <main>
-      {/* hero */}
-      <section className="mx-auto max-w-6xl px-5 pb-16 pt-20">
-        <p className="text-sm font-semibold uppercase tracking-widest text-paca-500">
-          Professional Agile Certification &mdash; Africa
-        </p>
-        <h1 className="mt-4 max-w-3xl text-4xl font-bold leading-tight tracking-tight sm:text-5xl">
-          Benchmark standards for the Agile profession in Africa.
-        </h1>
-        <p className="mt-5 max-w-2xl text-lg leading-relaxed" style={{ color: "var(--text-muted)" }}>
-          PACA provides professional, educational and representational support across the Agile, Scrum, DevOps and
-          Kanban community &mdash; issuing certifications, maintaining a register of members, and advancing the
-          profession across the continent.
-        </p>
-
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/membership"
-            className="rounded-lg bg-paca-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-paca-600"
-          >
-            Secure your membership
-          </Link>
-          <Link
-            href="/assessment"
-            className="rounded-lg border px-6 py-3 text-sm font-semibold transition hover:border-paca-500 hover:text-paca-500"
-            style={{ borderColor: "var(--border)" }}
-          >
-            Try the free assessment
-          </Link>
+      {/* ------------------------------------------------------------ hero */}
+      <section className="paca-gradient grain relative overflow-hidden text-white">
+        <div className="aurora" aria-hidden>
+          <span />
+          <span />
+          <span />
         </div>
-      </section>
-
-      {/* certification badges */}
-      <section className="border-t" style={{ borderColor: "var(--border)" }}>
-        <div className="mx-auto max-w-6xl px-5 py-16">
-          <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-widest text-paca-500">Certification badges</p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">A badge for every stage of your Agile career</h2>
-            <p className="mt-3 leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              Earn your PACA badge, show it on LinkedIn and your CV, and let employers verify it online with your
-              credential ID.
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 pb-24 pt-20 lg:grid-cols-[1.1fr_0.9fr] lg:pt-28">
+          <div>
+            <p className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-white/90 backdrop-blur">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#f2b134]" /> Professional Agile Certification &mdash; Africa
             </p>
+            <h1 className="mt-6 text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl">
+              The standard for <span className="text-gradient">Agile professionals</span> in Africa.
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/85">
+              Get certified, earn a badge employers trust, and grow with a community of Scrum Masters, Product Owners and
+              Agile leaders across the continent.
+            </p>
+            <div className="mt-9 flex flex-wrap gap-3">
+              <Link
+                href="/register"
+                className="rounded-xl bg-white px-7 py-3.5 text-sm font-bold text-paca-700 shadow-xl shadow-black/20 transition hover:-translate-y-0.5"
+              >
+                Join PACA — it&rsquo;s free to register
+              </Link>
+              <Link
+                href="/assessment"
+                className="rounded-xl border border-white/40 bg-white/10 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20"
+              >
+                Take the free competency test
+              </Link>
+            </div>
+            <p className="mt-5 text-sm text-white/70">Free test · 20 questions · see every answer explained</p>
           </div>
 
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {BADGES.map((b) => (
+          <div className="relative mx-auto grid w-full max-w-md grid-cols-2 gap-5">
+            {BADGES.map((b, i) => (
               <Link
                 key={b.tier}
                 href={`/membership/${b.slug}`}
-                className="group flex flex-col items-center rounded-2xl border p-6 text-center transition hover:-translate-y-1 hover:border-paca-500 hover:shadow-lg"
-                style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+                className="bob block rounded-3xl bg-white/95 p-3 shadow-2xl shadow-black/30 transition hover:scale-[1.04]"
+                style={{ ["--tilt" as string]: `${[-4, 3, 2, -3][i]}deg`, animationDelay: `${i * -1.4}s` }}
               >
-                <Image
-                  src={b.image}
-                  alt={`${b.name} badge`}
-                  width={180}
-                  height={152}
-                  className="h-[152px] w-auto rounded-lg object-contain transition group-hover:scale-105"
-                />
-                <h3 className="mt-4 font-semibold">{b.name}</h3>
-                <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  {b.summary}
-                </p>
-                <span className="mt-auto pt-4 text-sm font-semibold text-paca-500">How to earn it &rarr;</span>
+                <Image src={b.image} alt={`${b.name} badge`} width={200} height={169} priority className="h-auto w-full rounded-2xl" />
               </Link>
             ))}
           </div>
         </div>
-      </section>
 
-      {/* what PACA does */}
-      <section className="border-y" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-        <div className="mx-auto max-w-6xl px-5 py-16">
-          <h2 className="text-2xl font-bold tracking-tight">What PACA does</h2>
-          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {/* stat strip */}
+        <div className="border-t border-white/15 bg-black/10 backdrop-blur">
+          <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-5 py-7 text-center md:grid-cols-4">
             {[
-              ["Benchmark standards", "Sets and maintains the standard for Agile certification, so a PACA credential means something to employers."],
-              ["Research", "Conducts research to build, grow and enhance the Agile, Scrum and Kanban profession."],
-              ["Education", "Influences the education and development of Agile practitioners across Africa."],
-              ["Certification", "Issues certificates for professional designations gained and maintained."],
-              ["Member register", "Maintains and publishes a register of members in good standing."],
-              ["Career pathways", "Communicates the career paths available within the community."],
-            ].map(([title, body]) => (
-              <div key={title} className="rounded-xl border p-5" style={{ borderColor: "var(--border)" }}>
-                <h3 className="font-semibold">{title}</h3>
-                <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  {body}
-                </p>
+              [String(tiers.length || 5), "membership types"],
+              [`${PARTNER_COURSES.length}+`, "partner courses"],
+              ["3", "global training partners"],
+              ["100%", "online & verifiable"],
+            ].map(([n, label]) => (
+              <div key={label}>
+                <div className="text-3xl font-extrabold">{n}</div>
+                <div className="mt-1 text-xs uppercase tracking-wider text-white/70">{label}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* membership tiers */}
-      <section className="mx-auto max-w-6xl px-5 py-16">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Membership</h2>
-            <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
-              Annual subscription, due 1 January. Register free and pay when you are ready.
-            </p>
-          </div>
-          <Link href="/membership" className="text-sm font-semibold text-paca-500 hover:underline">
-            Compare all types &rarr;
-          </Link>
-        </div>
-
-        {tiers.length > 0 ? (
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {tiers.map((t) => (
-              <Link
-                key={t.tier}
-                href={`/membership/${t.tier.toLowerCase()}`}
-                className="rounded-xl border p-5 transition hover:border-paca-500"
-                style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-              >
-                <div className="flex items-baseline justify-between">
-                  <h3 className="font-semibold">{t.displayName}</h3>
-                  <span className="text-lg font-bold text-paca-500">{formatUsd(t.priceUsdCents)}</span>
-                </div>
-                <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                  {t.requiresPanel
-                    ? "Assessed by a panel of academic and industry leaders"
-                    : t.requiresExam
-                      ? `${t.examQuestionCount} questions · ${t.examDurationMins} minutes · ${(t.passMarkBps ?? 0) / 100}% to pass`
-                      : "Retains the credential held before retirement"}
-                </p>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-8 text-sm" style={{ color: "var(--text-muted)" }}>
-            Membership details are temporarily unavailable. Please try again shortly.
+      {/* ------------------------------------------------------------ badges */}
+      <section className="mx-auto max-w-6xl px-5 py-20">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-sm font-semibold uppercase tracking-widest text-paca-500">Certification badges</p>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">A badge for every stage of your career</h2>
+          <p className="mt-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            Earn your PACA badge, show it on LinkedIn and your CV, and let employers verify it online in seconds.
           </p>
-        )}
+        </div>
+        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {BADGES.map((b) => (
+            <Link
+              key={b.tier}
+              href={`/membership/${b.slug}`}
+              className="group flex flex-col items-center rounded-3xl border p-6 text-center transition hover:-translate-y-1 hover:border-paca-400 hover:shadow-xl"
+              style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+            >
+              <div className="rounded-2xl bg-gradient-to-b from-paca-50 to-transparent p-3">
+                <Image src={b.image} alt={`${b.name} badge`} width={180} height={152} className="h-[152px] w-auto rounded-xl transition group-hover:scale-105" />
+              </div>
+              <h3 className="mt-4 font-bold">{b.name}</h3>
+              <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>{b.summary}</p>
+              <span className="mt-auto pt-4 text-sm font-semibold text-paca-500">How to earn it &rarr;</span>
+            </Link>
+          ))}
+        </div>
       </section>
 
-      {/* partners */}
-      <section className="border-t" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-        <div className="mx-auto max-w-6xl px-5 py-14 text-center">
-          <h2 className="text-2xl font-bold tracking-tight">Our partners</h2>
-          <p className="mx-auto mt-2 max-w-xl text-sm" style={{ color: "var(--text-muted)" }}>
-            We work with leading Agile organisations on training, standards and member benefits.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-6">
-            {PARTNERS.map((p) => (
-              <Link
-                key={p.name}
-                href={`/courses/partners/${p.slug}`}
-                className="flex h-32 w-44 items-center justify-center rounded-xl border bg-white p-3 transition hover:border-paca-500 hover:shadow-md"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <Image src={p.logo} alt={p.name} className="max-h-full w-auto object-contain" />
-              </Link>
+      {/* ------------------------------------------------------------ benefits */}
+      <section className="border-y" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+        <div className="mx-auto max-w-6xl px-5 py-20">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold uppercase tracking-widest text-paca-500">Membership benefits</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Everything you need to grow in Agile</h2>
+            </div>
+            <Link href="/membership" className="text-sm font-semibold text-paca-500 hover:underline">Compare membership types &rarr;</Link>
+          </div>
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {BENEFITS.map((b) => (
+              <div key={b.title} className="rounded-2xl border p-6 transition hover:border-paca-300 hover:shadow-lg" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-paca-50 text-2xl" aria-hidden>{b.icon}</span>
+                <h3 className="mt-4 font-bold">{b.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>{b.body}</p>
+              </div>
             ))}
           </div>
-          <Link href="/courses" className="mt-6 inline-block text-sm font-semibold text-paca-500 hover:underline">
-            Explore partner courses &rarr;
-          </Link>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------ how it works */}
+      <section className="mx-auto max-w-6xl px-5 py-20">
+        <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">How it works</h2>
+        <div className="mt-12 grid gap-6 md:grid-cols-4">
+          {[
+            ["1", "Register free", "Create your account and verify your email."],
+            ["2", "Test yourself", "Take the free competency test to find your level."],
+            ["3", "Apply & pay", "Choose your membership type, apply, and pay once approved."],
+            ["4", "Get certified", "Study, pass your exam and share your badge."],
+          ].map(([n, title, body]) => (
+            <div key={n} className="relative rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+              <span className="paca-gradient flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold text-white">{n}</span>
+              <h3 className="mt-4 font-bold">{title}</h3>
+              <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>{body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------ membership tiers */}
+      <section className="border-t" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+        <div className="mx-auto max-w-6xl px-5 py-20">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">Membership</h2>
+              <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>Annual subscription, due 1 January. Register free and pay when you are ready.</p>
+            </div>
+            <Link href="/membership" className="text-sm font-semibold text-paca-500 hover:underline">Compare all types &rarr;</Link>
+          </div>
+
+          {tiers.length > 0 ? (
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {tiers.map((t) => (
+                <Link
+                  key={t.tier}
+                  href={`/membership/${t.tier.toLowerCase()}`}
+                  className="flex flex-col rounded-2xl border p-5 transition hover:-translate-y-0.5 hover:border-paca-500 hover:shadow-lg"
+                  style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+                >
+                  <h3 className="font-bold">{t.displayName}</h3>
+                  <span className="mt-2 text-2xl font-extrabold text-paca-600">
+                    {formatUsd(t.priceUsdCents)}
+                    <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}> /year</span>
+                  </span>
+                  <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    {t.requiresPanel
+                      ? "Assessed by a panel of academic and industry leaders"
+                      : t.requiresExam
+                        ? `${t.examQuestionCount} questions · ${t.examDurationMins} min · ${(t.passMarkBps ?? 0) / 100}% to pass`
+                        : "Retains the credential held before retirement"}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-8 text-sm" style={{ color: "var(--text-muted)" }}>Membership details are temporarily unavailable. Please try again shortly.</p>
+          )}
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------ partners */}
+      <section className="mx-auto max-w-6xl px-5 py-20 text-center">
+        <p className="text-sm font-semibold uppercase tracking-widest text-paca-500">Training partners</p>
+        <h2 className="mt-2 text-3xl font-bold tracking-tight">Learn with the world&rsquo;s leading Agile bodies</h2>
+        <p className="mx-auto mt-3 max-w-xl text-sm" style={{ color: "var(--text-muted)" }}>
+          Members get discounts on partner courses from Scrum.org, ProKanban.org and Scrum Alliance.
+        </p>
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-6">
+          {PARTNERS.map((p) => (
+            <Link
+              key={p.name}
+              href={`/courses/partners/${p.slug}`}
+              className="flex h-32 w-48 items-center justify-center rounded-2xl border bg-white p-4 transition hover:-translate-y-1 hover:border-paca-500 hover:shadow-lg"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <Image src={p.logo} alt={p.name} className="max-h-full w-auto object-contain" />
+            </Link>
+          ))}
+        </div>
+        <Link href="/courses" className="mt-8 inline-block text-sm font-semibold text-paca-500 hover:underline">Explore partner courses &rarr;</Link>
+      </section>
+
+      {/* ------------------------------------------------------------ final CTA */}
+      <section className="mx-auto max-w-6xl px-5 pb-8">
+        <div className="paca-gradient grain relative overflow-hidden rounded-3xl px-8 py-14 text-center text-white shadow-2xl">
+          <div className="aurora" aria-hidden>
+            <span />
+            <span />
+            <span />
+          </div>
+          <h2 className="text-3xl font-extrabold sm:text-4xl">Ready to prove your Agile expertise?</h2>
+          <p className="mx-auto mt-3 max-w-xl text-white/85">Start with the free competency test — it takes 30 minutes and shows you exactly where you stand.</p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Link href="/register" className="rounded-xl bg-white px-7 py-3.5 text-sm font-bold text-paca-700 shadow-xl">Join PACA</Link>
+            <Link href="/assessment" className="rounded-xl border border-white/40 px-7 py-3.5 text-sm font-semibold text-white">Take the free test</Link>
+          </div>
         </div>
       </section>
     </main>

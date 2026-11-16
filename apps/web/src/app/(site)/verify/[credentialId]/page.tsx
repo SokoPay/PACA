@@ -36,7 +36,7 @@ export default async function VerifyPage({ params }: { params: Promise<{ credent
             </div>
             <div>
               <dt className="inline">Awarded for: </dt>
-              <dd className="inline">{cert.tier ? `${cert.tier} certification assessment` : "PACA Open Assessment"}</dd>
+              <dd className="inline">{cert.tier ? `${cert.tier} certification assessment` : "PACA completion certificate"}</dd>
             </div>
             {cert.scoreBps !== null && (
               <div>
