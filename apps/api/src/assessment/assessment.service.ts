@@ -320,17 +320,22 @@ export class AssessmentService {
       await this.prisma.questionExposure.findMany({ where: { userId, servedOn: today }, select: { questionId: true } })
     ).map((e) => e.questionId);
 
-    const eligible = await this.prisma.question.findMany({
+    // Unlimited retakes: fresh questions first, then ones already seen today.
+    const fresh = await this.prisma.question.findMany({
       where: { status: "PUBLISHED", id: { notIn: seenTodayIds } },
       select: { id: true },
     });
-    if (eligible.length === 0) {
-      throw new ConflictException("You have already seen today's question pool — come back tomorrow for a fresh set.");
+    const seen = seenTodayIds.length
+      ? await this.prisma.question.findMany({ where: { status: "PUBLISHED", id: { in: seenTodayIds } }, select: { id: true } })
+      : [];
+    if (fresh.length + seen.length === 0) {
+      throw new ConflictException("The question bank is being prepared. Please try again soon.");
     }
 
     const seed = Math.floor(Math.random() * 2 ** 31);
-    const questionIds = seededShuffle(eligible, mulberry32(seed))
-      .slice(0, Math.min(FREE_QUESTION_COUNT, eligible.length))
+    const rand = mulberry32(seed);
+    const questionIds = [...seededShuffle(fresh, rand), ...seededShuffle(seen, rand)]
+      .slice(0, FREE_QUESTION_COUNT)
       .map((q) => q.id);
 
     const attempt = await this.createAttempt({
@@ -410,6 +415,7 @@ export class AssessmentService {
         })
       : [];
     const attemptsRemaining = entitlements.reduce((n, e) => n + Math.max(0, e.attemptsGranted - e.attemptsUsed), 0);
+    const attemptsTotal = entitlements.reduce((n, e) => n + e.attemptsGranted, 0) || (config?.attemptsPerEntitlement ?? 3);
 
     const last = await this.prisma.attempt.findFirst({
       where: { userId: user.id, type: "CERTIFICATION", status: { not: "IN_PROGRESS" } },
@@ -439,6 +445,7 @@ export class AssessmentService {
       durationMins: config?.examDurationMins ?? null,
       passMarkBps: config?.passMarkBps ?? null,
       attemptsRemaining,
+      attemptsTotal,
       certificate,
       lastAttempt: last,
       activeAttempt: await this.activeOf(user.id, "CERTIFICATION"),

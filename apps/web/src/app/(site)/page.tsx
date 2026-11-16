@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { fetchTiers, formatUsd, type TierInfo } from "@/lib/api";
+import { fetchEvents, fetchTiers, formatUsd, type EventItem, type TierInfo } from "@/lib/api";
+import { EventCard } from "@/components/EventCard";
 import { BADGES, PARTNERS } from "@/lib/brand";
 import { PARTNER_COURSES } from "@/lib/catalog";
 
@@ -24,8 +25,9 @@ const BENEFITS = [
 
 export default async function HomePage() {
   let tiers: TierInfo[] = [];
+  let events: EventItem[] = [];
   try {
-    tiers = await fetchTiers();
+    [tiers, events] = await Promise.all([fetchTiers(), fetchEvents().catch(() => [])]);
   } catch {
     // The marketing page must still render if the API is briefly unavailable.
   }
@@ -148,6 +150,36 @@ export default async function HomePage() {
             ))}
           </div>
         </div>
+      </section>
+
+      {/* ------------------------------------------------------------ events */}
+      <section className="mx-auto max-w-6xl px-5 pt-20">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold uppercase tracking-widest text-paca-500">Events</p>
+            <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Upcoming events</h2>
+            <p className="mt-3 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              Meetups, webinars and conferences. PACA members get exclusive discount codes.
+            </p>
+          </div>
+          <Link href="/events" className="text-sm font-semibold text-paca-500 hover:underline">See all events &rarr;</Link>
+        </div>
+        {events.length > 0 ? (
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {events.slice(0, 3).map((e) => (
+              <EventCard key={e.id} event={e} compact />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-10 flex flex-col items-center gap-3 rounded-3xl border p-10 text-center sm:flex-row sm:text-left" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+            <span className="text-5xl" aria-hidden>🗓️</span>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold">New events are coming soon</h3>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>Join PACA and you&rsquo;ll be the first to know — with your member discount code.</p>
+            </div>
+            <Link href="/register" className="rounded-xl bg-paca-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-paca-600">Join PACA</Link>
+          </div>
+        )}
       </section>
 
       {/* ------------------------------------------------------------ how it works */}

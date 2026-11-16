@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { fetchPartners } from "@/lib/api";
 import { PARTNERS } from "@/lib/brand";
+import { PageHero } from "@/components/PageHero";
 
 export const metadata = {
   title: "Partners",
@@ -13,8 +14,9 @@ export default async function PartnersPage() {
   const partners = (await fetchPartners().catch(() => [])).filter((p) => !known.has(p.name.toLowerCase()));
 
   return (
-    <main className="mx-auto max-w-5xl px-5 py-16">
-      <h1 className="text-3xl font-bold tracking-tight">Partners</h1>
+    <main>
+      <PageHero eyebrow={"Partners"} title={"Our training partners"} lead={"PACA works with the world's leading Agile bodies so members can learn for less."} />
+      <div className="mx-auto max-w-5xl px-5 py-14">
       <p className="mt-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>
         Organisations PACA works with on training, tooling and member discounts.
       </p>
@@ -63,6 +65,7 @@ export default async function PartnersPage() {
           ))}
         </div>
       )}
+      </div>
     </main>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { fetchTiers, formatUsd, type TierInfo } from "@/lib/api";
 import { badgeFor } from "@/lib/brand";
+import { PageHero } from "@/components/PageHero";
 
 export const metadata = {
   title: "PACA Membership",
@@ -26,8 +27,9 @@ export default async function MembershipPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-5 py-16">
-      <h1 className="text-3xl font-bold tracking-tight">PACA membership</h1>
+    <main>
+      <PageHero eyebrow={"Membership"} title={"Choose the membership that fits your career"} lead={"Five membership types, from students starting out to Fellows shaping the profession. Register free, pay when you're approved."} />
+      <div className="mx-auto max-w-6xl px-5 py-14">
       <p className="mt-3 max-w-2xl leading-relaxed" style={{ color: "var(--text-muted)" }}>
         Each membership type has its own requirements and application form. Subscriptions run annually and fall due on
         1 January. You can register now and pay later &mdash; your certificate and member badge unlock once payment
@@ -121,11 +123,12 @@ export default async function MembershipPage() {
             your benefits. There is no deadline &mdash; pay whenever you are ready.
           </li>
           <li>
-            <strong style={{ color: "var(--text)" }}>5. Certify.</strong> Sit the assessment, and on passing receive
+            <strong style={{ color: "var(--text)" }}>5. Certify.</strong> Sit the certification exam (3 chances), and on passing receive
             your certificate by email plus a badge you can share on LinkedIn.
           </li>
         </ol>
       </section>
+      </div>
     </main>
   );
 }

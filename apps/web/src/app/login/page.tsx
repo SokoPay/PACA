@@ -48,7 +48,7 @@ function LoginForm() {
         </Link>
         <h1 className="mt-1 text-lg font-semibold">Sign in</h1>
         <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-          Access your membership and assessments
+          Access your membership, exams and benefits
         </p>
       </div>
 

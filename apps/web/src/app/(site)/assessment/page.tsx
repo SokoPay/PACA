@@ -85,6 +85,7 @@ export default function FreeTestPage() {
       <AttemptRunner
         attempt={attempt}
         title="Free competency test"
+        kind="free"
         onFinished={(r) => {
           setResult(r);
           setAttempt(null);

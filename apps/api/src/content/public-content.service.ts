@@ -69,23 +69,6 @@ export class PublicContentService {
   }
 
   /**
-   * Public teaser for the members-only job board: the count and a few recent
-   * titles, without apply links (those are a paid-member benefit).
-   */
-  async jobs() {
-    const [total, latest] = await Promise.all([
-      this.prisma.jobListing.count({ where: { status: "PUBLISHED" } }),
-      this.prisma.jobListing.findMany({
-        where: { status: "PUBLISHED" },
-        orderBy: { fetchedAt: "desc" },
-        take: 6,
-        select: { id: true, title: true, company: true, location: true, isRemote: true, agileRole: true, seniority: true },
-      }),
-    ]);
-    return { total, latest };
-  }
-
-  /**
    * Public professional database: paid members in good standing who opted in.
    * Name, role, country and badge only; bio and LinkedIn are for paid members
    * (the members-only network), as the profile page tells the member.

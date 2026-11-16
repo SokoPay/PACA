@@ -16,6 +16,7 @@ export interface AnnouncementInput {
   tiers: MembershipTier[];
   publish: boolean;
   pinDays?: number | null;
+  discountCode?: string | null;
 }
 
 const PROFILE_FIELDS = {
@@ -77,7 +78,7 @@ export class EngagementService {
       where: { status: "PUBLISHED", OR: or },
       orderBy: { publishedAt: "desc" },
       take: 20,
-      select: { id: true, title: true, body: true, publishedAt: true, pinnedUntil: true },
+      select: { id: true, title: true, body: true, publishedAt: true, pinnedUntil: true, discountCode: true },
     });
     const now = Date.now();
     return rows
@@ -98,6 +99,7 @@ export class EngagementService {
         slug,
         audience: input.audience,
         visibleToTiers: input.audience === "BY_TIER" ? input.tiers : [],
+        discountCode: input.discountCode || null,
         pinnedUntil: input.pinDays ? new Date(Date.now() + input.pinDays * 86_400_000) : null,
       },
     });
@@ -128,7 +130,7 @@ export class EngagementService {
     const sent = await this.notifications.notifyMany(recipients, {
       kind: "ANNOUNCEMENT",
       title: a.title,
-      body: a.body.length > 280 ? `${a.body.slice(0, 277)}…` : a.body,
+      body: (a.body.length > 260 ? `${a.body.slice(0, 257)}…` : a.body) + (a.discountCode ? ` Code: ${a.discountCode}` : ""),
       link: "/notifications",
     });
 

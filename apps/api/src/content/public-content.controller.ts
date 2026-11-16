@@ -44,15 +44,6 @@ export class FaqController {
 }
 
 @Public()
-@Controller("jobs")
-export class JobsController {
-  constructor(private readonly content: PublicContentService) {}
-  @Get() list() {
-    return this.content.jobs();
-  }
-}
-
-@Public()
 @Controller("directory")
 export class DirectoryController {
   constructor(private readonly content: PublicContentService) {}

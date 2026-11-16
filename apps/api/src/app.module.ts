@@ -14,6 +14,7 @@ import { LibraryModule } from "./library/library.module";
 import { PartnersModule } from "./partners/partners.module";
 import { EngagementModule } from "./engagement/engagement.module";
 import { JobsModule } from "./jobs/jobs.module";
+import { EventsModule } from "./events/events.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { HealthController } from "./health.controller";
@@ -41,6 +42,7 @@ import { HealthController } from "./health.controller";
     PartnersModule,
     EngagementModule,
     JobsModule,
+    EventsModule,
   ],
   controllers: [HealthController],
   providers: [

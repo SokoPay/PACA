@@ -4,6 +4,7 @@ import { fetchPartnerOffers, type PartnerOffer } from "@/lib/api";
 import { PACA_COURSES, PARTNER_INFO, coursesFor } from "@/lib/catalog";
 import { partnerBrand } from "@/lib/brand";
 import { discountLabel } from "@/components/CourseCard";
+import { PageHero } from "@/components/PageHero";
 
 export const metadata = {
   title: "Explore courses",
@@ -18,30 +19,24 @@ export default async function CoursesPage() {
 
   return (
     <main>
-      <section className="border-b" style={{ borderColor: "var(--border)" }}>
-        <div className="mx-auto max-w-6xl px-5 pb-12 pt-16">
-          <p className="text-sm font-semibold uppercase tracking-widest text-paca-500">Explore courses</p>
-          <h1 className="mt-3 max-w-3xl text-4xl font-bold leading-tight tracking-tight">
-            Train with the world&rsquo;s leading Agile bodies, for less.
-          </h1>
-          <p className="mt-4 max-w-2xl text-lg leading-relaxed" style={{ color: "var(--text-muted)" }}>
-            Pick a partner, choose a course, and take it with your PACA membership. Members with an active membership
-            get an agreed discount on partner courses.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3 text-sm">
-            {[
-              ["1", "Choose a partner course"],
-              ["2", "Use your PACA member discount"],
-              ["3", "Get certified and grow your career"],
-            ].map(([n, t]) => (
-              <span key={n} className="flex items-center gap-2 rounded-full border px-3 py-1.5" style={{ borderColor: "var(--border)" }}>
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-paca-500 text-[11px] font-bold text-white">{n}</span>
-                {t}
-              </span>
-            ))}
-          </div>
+      <PageHero
+        eyebrow="Explore courses"
+        title="Train with the world’s leading Agile bodies, for less."
+        lead="Pick a partner, choose a course, and take it with your PACA membership. Members with an active membership get an agreed discount on partner courses."
+      >
+        <div className="flex flex-wrap gap-3 text-sm">
+          {[
+            ["1", "Choose a partner course"],
+            ["2", "Use your PACA member discount"],
+            ["3", "Get certified and grow your career"],
+          ].map(([n, t]) => (
+            <span key={n} className="flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 backdrop-blur">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-bold text-paca-600">{n}</span>
+              {t}
+            </span>
+          ))}
         </div>
-      </section>
+      </PageHero>
 
       <section id="partners" className="mx-auto max-w-6xl px-5 py-14">
         <h2 className="text-2xl font-bold tracking-tight">Partner courses</h2>

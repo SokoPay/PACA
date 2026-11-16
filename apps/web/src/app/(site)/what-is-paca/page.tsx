@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PageHero } from "@/components/PageHero";
 
 export const metadata = {
   title: "What is PACA?",
@@ -25,8 +26,9 @@ const DIFFERENTIATORS: Array<[string, string]> = [
 
 export default function WhatIsPacaPage() {
   return (
-    <main className="mx-auto max-w-3xl px-5 py-16">
-      <h1 className="text-3xl font-bold tracking-tight">What is PACA?</h1>
+    <main>
+      <PageHero eyebrow={"Discover PACA"} title={"What is PACA?"} lead={"The professional body setting benchmark standards for Agile practice in Africa."} />
+      <div className="mx-auto max-w-3xl px-5 py-14">
       <p className="mt-4 text-lg leading-relaxed" style={{ color: "var(--text-muted)" }}>
         PACA is committed to providing professional, educational and representational support in the Agile, Scrum,
         DevOps and Kanban community, and to promoting educational development programmes that advance its members.
@@ -68,6 +70,7 @@ export default function WhatIsPacaPage() {
         >
           Explore membership
         </Link>
+      </div>
       </div>
     </main>
   );

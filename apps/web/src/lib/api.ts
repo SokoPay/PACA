@@ -1068,6 +1068,7 @@ export interface ExamStatus {
   durationMins: number | null;
   passMarkBps: number | null;
   attemptsRemaining: number;
+  attemptsTotal: number;
   certificate: { id: string; credentialId: string; issuedAt: string } | null;
   lastAttempt: { id: string; scoreBps: number | null; passed: boolean | null; submittedAt: string | null } | null;
   activeAttempt: AssessmentAttemptView | null;
@@ -1135,6 +1136,7 @@ export interface AnnouncementItem {
   body: string;
   publishedAt: string | null;
   pinned: boolean;
+  discountCode: string | null;
 }
 export const fetchAnnouncements = () => api<AnnouncementItem[]>("/announcements");
 
@@ -1157,6 +1159,7 @@ export const createAnnouncement = (body: {
   tiers: MembershipTierValue[];
   publish: boolean;
   pinDays: number | null;
+  discountCode: string | null;
 }) => api<AdminAnnouncement>("/admin/announcements", { method: "POST", body: JSON.stringify(body) });
 export const publishAnnouncement = (id: string) =>
   api<AdminAnnouncement>(`/admin/announcements/${id}/publish`, { method: "POST", body: JSON.stringify({}) });
@@ -1275,3 +1278,48 @@ export const runJobCrawl = () =>
 export const fetchAdminJobListings = (status: string) => api<AdminJobListing[]>(`/admin/jobs/listings?status=${status}`);
 export const reviewJobListing = (id: string, status: "PUBLISHED" | "REJECTED") =>
   api(`/admin/jobs/listings/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+
+// ---------------------------------------------------------------- events
+
+export interface EventItem {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  description: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  location: string | null;
+  isOnline: boolean;
+  registerUrl: string | null;
+  priceText: string | null;
+  memberDiscountPercent: number | null;
+  /** Only present for paid members. */
+  memberDiscountCode?: string | null;
+}
+
+export const fetchEvents = () => publicFetch<EventItem[]>("/events");
+export const fetchMemberEvents = () => api<{ paid: boolean; items: EventItem[] }>("/member-events");
+
+export interface AdminEvent extends EventItem {
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  memberDiscountCode: string | null;
+  createdAt: string;
+}
+export const fetchAdminEvents = () => api<AdminEvent[]>("/admin/events");
+export const createEvent = (body: {
+  title: string;
+  summary: string;
+  description: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  location: string | null;
+  isOnline: boolean;
+  registerUrl: string | null;
+  priceText: string | null;
+  memberDiscountPercent: number | null;
+  memberDiscountCode: string | null;
+  publish: boolean;
+}) => api<AdminEvent>("/admin/events", { method: "POST", body: JSON.stringify(body) });
+export const publishEvent = (id: string) => api<AdminEvent>(`/admin/events/${id}/publish`, { method: "POST", body: JSON.stringify({}) });
+export const deleteEvent = (id: string) => api<void>(`/admin/events/${id}`, { method: "DELETE" });

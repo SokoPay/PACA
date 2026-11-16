@@ -1,4 +1,5 @@
 import { fetchFaqItems } from "@/lib/api";
+import { PageHero } from "@/components/PageHero";
 
 export const metadata = {
   title: "Questions & answers",
@@ -15,8 +16,9 @@ export default async function FaqPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-16">
-      <h1 className="text-3xl font-bold tracking-tight">Questions &amp; answers</h1>
+    <main>
+      <PageHero eyebrow={"Help"} title={"Questions & answers"} lead={"Everything you need to know about PACA membership, exams and certificates."} />
+      <div className="mx-auto max-w-3xl px-5 py-14">
 
       {items.length === 0 ? (
         <p className="mt-10 text-sm" style={{ color: "var(--text-muted)" }}>
@@ -39,6 +41,7 @@ export default async function FaqPage() {
           </section>
         ))
       )}
+      </div>
     </main>
   );
 }

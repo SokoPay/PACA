@@ -19,6 +19,7 @@ const announcementSchema = z.object({
   tiers: z.array(z.enum(TIERS)).default([]),
   publish: z.boolean().default(true),
   pinDays: z.number().int().min(1).max(90).nullable().optional(),
+  discountCode: z.string().trim().max(60).nullable().optional(),
 });
 
 const optionalText = (max: number) =>

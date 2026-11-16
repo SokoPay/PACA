@@ -43,7 +43,7 @@ export default function ExamPage() {
   }, [router]);
 
   async function begin() {
-    if (!window.confirm("Start the certification exam now? This uses one of your attempts and the timer starts immediately.")) return;
+    if (!window.confirm("Start your certification exam now? This uses one of your chances and the timer starts immediately.")) return;
     setStarting(true);
     setError(null);
     try {
@@ -60,6 +60,7 @@ export default function ExamPage() {
       <AttemptRunner
         attempt={attempt}
         title={`${status?.tierName ?? "PACA"} certification exam`}
+        kind="exam"
         onFinished={(r) => {
           setResult(r);
           setAttempt(null);
@@ -103,7 +104,7 @@ export default function ExamPage() {
           )}
         </section>
         <p className="mt-6 text-center text-xs" style={{ color: "var(--text-muted)" }}>
-          To keep the certification fair, exam answers are not shown. Attempts remaining: {status?.attemptsRemaining ?? "—"}.
+          To keep the certification fair, exam answers are not shown. Chances left: {status?.attemptsRemaining ?? "—"} of {status?.attemptsTotal ?? 3}.
         </p>
       </main>
     );
@@ -115,9 +116,12 @@ export default function ExamPage() {
         <div className="paca-gradient flex flex-col items-center gap-4 px-8 py-10 text-center text-white sm:flex-row sm:text-left">
           {badge && <Image src={badge.image} alt="" width={130} height={110} className="h-[110px] w-auto rounded-xl bg-white/90 p-2" />}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Paid members only</p>
-            <h1 className="mt-2 text-3xl font-bold">{status?.tierName ? `${status.tierName} certification exam` : "Certification exam"}</h1>
-            <p className="mt-2 text-white/90">Pass to earn your PACA certificate and verified credential.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Your main exam · paid members only</p>
+            <h1 className="mt-2 text-3xl font-bold">{status?.tierName ? `${status.tierName} certification exam` : "PACA certification exam"}</h1>
+            <p className="mt-2 text-white/90">
+              This is the official exam for your membership. Pass it to earn your PACA certificate and verified credential.
+              {status ? ` You have ${status.attemptsTotal} chances in total.` : ""}
+            </p>
           </div>
         </div>
 
@@ -131,13 +135,38 @@ export default function ExamPage() {
 
           {status && (
             <>
+              <div className="mb-6 flex flex-wrap items-center gap-4 rounded-2xl p-5" style={{ background: "var(--bg)" }}>
+                <div className="flex gap-2" aria-label={`${status.attemptsRemaining} of ${status.attemptsTotal} chances left`}>
+                  {Array.from({ length: status.attemptsTotal }).map((_, i) => {
+                    const used = i >= status.attemptsRemaining;
+                    return (
+                      <span
+                        key={i}
+                        className="flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold"
+                        style={used ? { background: "var(--border)", color: "var(--text-muted)" } : { background: "var(--color-paca-500)", color: "white" }}
+                      >
+                        {used ? "✕" : i + 1}
+                      </span>
+                    );
+                  })}
+                </div>
+                <div>
+                  <p className="font-semibold">
+                    {status.attemptsRemaining} of {status.attemptsTotal} chance{status.attemptsTotal === 1 ? "" : "s"} left
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    Each time you start the exam uses one chance. Practise first with the free competency test — it&rsquo;s unlimited.
+                  </p>
+                </div>
+              </div>
+
               {status.questionCount && (
                 <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                   {[
                     ["Questions", String(status.questionCount)],
                     ["Time", `${status.durationMins} min`],
                     ["Pass mark", `${(status.passMarkBps ?? 0) / 100}%`],
-                    ["Attempts left", String(status.attemptsRemaining)],
+                    ["Format", "Batches of 10"],
                   ].map(([k, v]) => (
                     <div key={k} className="rounded-xl p-4 text-center" style={{ background: "var(--bg)" }}>
                       <dt className="text-xs" style={{ color: "var(--text-muted)" }}>{k}</dt>
@@ -160,14 +189,15 @@ export default function ExamPage() {
                   <ul className="mt-6 space-y-2 text-sm" style={{ color: "var(--text-muted)" }}>
                     <li>• The timer starts as soon as you begin and can&rsquo;t be paused.</li>
                     <li>• Your answers save as you go; the exam submits itself when time runs out.</li>
-                    <li>• Starting uses one attempt. Answers are not revealed afterwards.</li>
+                    <li>• Questions come in batches of 10 — you can go back to any batch and change answers before you submit.</li>
+                    <li>• Starting uses one of your chances. Exam answers are not revealed afterwards.</li>
                   </ul>
                   <button
                     onClick={() => void begin()}
                     disabled={starting}
                     className="mt-6 rounded-xl bg-paca-500 px-7 py-3 text-sm font-bold text-white shadow-lg shadow-paca-500/25 hover:bg-paca-600 disabled:opacity-60"
                   >
-                    {starting ? "Starting…" : "Start the exam"}
+                    {starting ? "Starting…" : `Start my certification exam (chance ${status.attemptsTotal - status.attemptsRemaining + 1} of ${status.attemptsTotal})`}
                   </button>
                 </>
               ) : (

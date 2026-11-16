@@ -1,4 +1,5 @@
 import { fetchResources, TIER_LABEL } from "@/lib/api";
+import { PageHero } from "@/components/PageHero";
 
 export const metadata = {
   title: "Digital library",
@@ -9,8 +10,9 @@ export default async function LibraryPage() {
   const resources = await fetchResources().catch(() => []);
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-16">
-      <h1 className="text-3xl font-bold tracking-tight">Digital library</h1>
+    <main>
+      <PageHero eyebrow={"Learning resources"} title={"Digital library"} lead={"Guides, templates and study books for every stage of your Agile journey."} />
+      <div className="mx-auto max-w-3xl px-5 py-14">
       <p className="mt-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>
         Guides, templates and reference material. Books marked &ldquo;Members&rdquo; are in the member library: paid
         members read them from their dashboard, and each membership type has its own books.
@@ -56,6 +58,7 @@ export default async function LibraryPage() {
           ))}
         </div>
       )}
+      </div>
     </main>
   );
 }

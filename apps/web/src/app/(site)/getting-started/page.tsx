@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { fetchTiers, formatUsd, type TierInfo } from "@/lib/api";
+import { PageHero } from "@/components/PageHero";
 
 export const metadata = {
   title: "Getting started with PACA",
@@ -14,7 +15,7 @@ const STEPS: Array<[string, string]> = [
   ["Complete the application", "Fill in the form and upload your supporting documents. Progress saves as you go."],
   ["Board review", "Your application is reviewed. We email you as soon as there is a decision."],
   ["Pay your subscription", "Once approved, pay to unlock your benefits. There is no deadline to pay."],
-  ["Sit the assessment", "Earn your certificate and member badge. Certificates are emailed to you on passing."],
+  ["Sit the certification exam", "Practise with the free competency test, then pass your certification exam (3 chances) to earn your certificate and badge."],
 ];
 
 export default async function GettingStartedPage() {
@@ -26,8 +27,9 @@ export default async function GettingStartedPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-16">
-      <h1 className="text-3xl font-bold tracking-tight">Getting started with PACA</h1>
+    <main>
+      <PageHero eyebrow={"Discover PACA"} title={"Getting started with PACA"} lead={"From free registration to certification in a few clear steps."} />
+      <div className="mx-auto max-w-3xl px-5 py-14">
       <p className="mt-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>
         Applications are submitted to the General Manager in the form the Board prescribes. The Board considers every
         application impartially, regardless of race, gender or language background, and all correspondence is in
@@ -98,6 +100,7 @@ export default async function GettingStartedPage() {
         >
           Create a free account
         </Link>
+      </div>
       </div>
     </main>
   );

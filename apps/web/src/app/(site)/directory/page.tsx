@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { TIER_LABEL, fetchDirectory } from "@/lib/api";
 import { badgeFor } from "@/lib/brand";
+import { PageHero } from "@/components/PageHero";
 
 export const metadata = {
   title: "Professional database",
@@ -14,8 +15,9 @@ export default async function DirectoryPage() {
   const people = await fetchDirectory().catch(() => []);
 
   return (
-    <main className="mx-auto max-w-5xl px-5 py-16">
-      <h1 className="text-3xl font-bold tracking-tight">Professional database</h1>
+    <main>
+      <PageHero eyebrow={"Community"} title={"Professional database"} lead={"Verified PACA members in good standing across Africa."} />
+      <div className="mx-auto max-w-5xl px-5 py-14">
       <p className="mt-3 max-w-2xl leading-relaxed" style={{ color: "var(--text-muted)" }}>
         PACA members in good standing who chose to be listed. Each badge links to the member&rsquo;s verified badge page.
         Paid members can see full profiles and LinkedIn links in the{" "}
@@ -52,6 +54,7 @@ export default async function DirectoryPage() {
           })}
         </div>
       )}
+      </div>
     </main>
   );
 }

@@ -235,11 +235,14 @@ own test card and test mobile money options. A simple test card is
 
 ## Assessments, certificates and member benefits
 
-- **Free competency test** (`/assessment`): every registered user. No certificate.
+- **Free competency test** (`/assessment`): every registered user, as many times
+  as they like (fresh questions first). No certificate.
   Afterwards the member sees a congratulation, their level, a score per topic,
   and every question they missed with the correct answer and explanation. They
   can share their score (`/score/<id>`, with a social preview image).
-- **Certification exam** (`/exam`): paid members only, for their own membership
+- **Exam layout**: questions come in batches of 10 with a question navigator;
+  members can go back to any batch to change answers before submitting.
+- **Certification exam** (`/exam`): paid members only (3 chances), for their own membership
   type (question count, time and pass mark from the tier settings). Each exam
   uses one attempt from the attempts granted with the payment. A pass issues the
   PACA certificate; exam answers are never revealed. **Note:** both use the same
@@ -251,7 +254,14 @@ own test card and test mobile money options. A simple test card is
 - **Announcements** (Admin → Announcements): to everyone, paid members, or chosen
   membership types. They show on dashboards and in the notification bell, along
   with automatic notifications (application decision, payment, exam result).
-- **Agile job board** (`/dashboard/jobs`, paid members): crawled every
+- **Events** (Admin → Events & discounts): shown on the home page, `/events` and
+  member dashboards. Publishing notifies every paid member; the discount
+  percentage is public, the discount code is shown only to paid members.
+  Announcements can also carry a discount code.
+- **Notifications** open as a pop-up from the bell (and automatically once per
+  session on the dashboard when something is unread).
+- **Agile job board** (`/dashboard/jobs`, paid members only — there is no public
+  job page; new jobs are announced in members' notifications): crawled every
   `JOBS_CRAWL_HOURS` (default 12) from Jobicy and Arbeitnow, plus any company
   Greenhouse/Lever boards added in Admin → Job board. Titles that look Agile are
   classified by Claude (`AI_MODEL`, default `claude-opus-5-5`, needs

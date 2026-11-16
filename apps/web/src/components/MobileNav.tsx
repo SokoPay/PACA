@@ -7,17 +7,17 @@ import { usePathname } from "next/navigation";
 export interface NavItem {
   label: string;
   href: string;
-  children?: Array<{ label: string; href: string }>;
+  children?: Array<{ label: string; href: string; external?: boolean }>;
 }
 
-/** The site menu on phones, where the desktop dropdowns are hidden. */
+/** The site menu on phones and tablets, where the desktop dropdowns are hidden. */
 export function MobileNav({ items }: { items: NavItem[] }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   useEffect(() => setOpen(false), [pathname]);
 
   return (
-    <div className="md:hidden">
+    <div className="lg:hidden">
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "Close menu" : "Open menu"}
@@ -32,19 +32,25 @@ export function MobileNav({ items }: { items: NavItem[] }) {
 
       {open && (
         <nav
-          className="absolute inset-x-0 top-full max-h-[75vh] overflow-y-auto border-b px-5 py-3 shadow-lg"
+          className="absolute inset-x-0 top-full max-h-[78vh] overflow-y-auto border-b px-5 py-3 shadow-2xl"
           style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
           {items.map((item) => (
-            <div key={item.label} className="py-2">
+            <div key={item.label} className="border-b py-2.5 last:border-0" style={{ borderColor: "var(--border)" }}>
               <Link href={item.href} className="block py-1 text-sm font-semibold">
                 {item.label}
               </Link>
-              {item.children?.map((c) => (
-                <Link key={c.href} href={c.href} className="block py-1 pl-3 text-sm" style={{ color: "var(--text-muted)" }}>
-                  {c.label}
-                </Link>
-              ))}
+              {item.children?.map((c) =>
+                c.external ? (
+                  <a key={c.href} href={c.href} target="_blank" rel="noopener noreferrer" className="block py-1 pl-3 text-sm" style={{ color: "var(--text-muted)" }}>
+                    {c.label} ↗
+                  </a>
+                ) : (
+                  <Link key={c.href} href={c.href} className="block py-1 pl-3 text-sm" style={{ color: "var(--text-muted)" }}>
+                    {c.label}
+                  </Link>
+                ),
+              )}
             </div>
           ))}
         </nav>

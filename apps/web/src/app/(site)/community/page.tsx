@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PageHero } from "@/components/PageHero";
 
 export const metadata = {
   title: "Community",
@@ -25,8 +26,9 @@ const LINKS: Array<{ href: string; title: string; body: string }> = [
 
 export default function CommunityPage() {
   return (
-    <main className="mx-auto max-w-3xl px-5 py-16">
-      <h1 className="text-3xl font-bold tracking-tight">Community</h1>
+    <main>
+      <PageHero eyebrow={"Community"} title={"The PACA community"} lead={"Connect with Scrum Masters, Product Owners and Agile leaders across the continent."} />
+      <div className="mx-auto max-w-3xl px-5 py-14">
       <p className="mt-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>
         Connect with other Agile practitioners across Africa.
       </p>
@@ -45,6 +47,7 @@ export default function CommunityPage() {
             </p>
           </Link>
         ))}
+      </div>
       </div>
     </main>
   );

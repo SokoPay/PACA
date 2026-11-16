@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { fetchNotifications, logout } from "@/lib/api";
-import { onNotificationsChanged } from "@/lib/notificationEvents";
+import { onNotificationsChanged, onOpenNotifications } from "@/lib/notificationEvents";
+import { NotificationsModal } from "./NotificationsModal";
 import { useSession } from "@/lib/useSession";
 
 /** Right-hand side of the site header: Sign in / Join, or the member's profile menu. */
@@ -14,7 +15,10 @@ export function HeaderAuth() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
+  const [modal, setModal] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => onOpenNotifications(() => setModal(true)), []);
 
   // Unread count for the bell: on sign-in, on navigation, and every 2 minutes.
   useEffect(() => {
@@ -76,8 +80,9 @@ export function HeaderAuth() {
 
   return (
     <div ref={ref} className="relative flex items-center gap-2">
-      <Link
-        href="/notifications"
+      <NotificationsModal open={modal} onClose={() => setModal(false)} />
+      <button
+        onClick={() => setModal(true)}
         aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
         className="relative flex h-9 w-9 items-center justify-center rounded-full border transition hover:border-paca-500 hover:text-paca-500"
         style={{ borderColor: "var(--border)" }}
@@ -91,7 +96,7 @@ export function HeaderAuth() {
             {unread > 9 ? "9+" : unread}
           </span>
         )}
-      </Link>
+      </button>
       <button
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
@@ -136,9 +141,22 @@ export function HeaderAuth() {
           <Link href="/certificates" role="menuitem" className={item}>
             My certificates
           </Link>
-          <Link href="/notifications" role="menuitem" className={`${item} flex items-center justify-between`}>
+          <button
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              setModal(true);
+            }}
+            className={`${item} flex w-full items-center justify-between text-left`}
+          >
             Notifications
             {unread > 0 && <span className="rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">{unread}</span>}
+          </button>
+          <Link href="/dashboard/jobs" role="menuitem" className={item}>
+            Agile jobs
+          </Link>
+          <Link href="/events" role="menuitem" className={item}>
+            Events
           </Link>
           <Link href="/dashboard/profile" role="menuitem" className={item}>
             My profile

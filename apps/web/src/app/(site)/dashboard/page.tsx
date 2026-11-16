@@ -6,13 +6,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   TIER_LABEL,
+  AGILE_ROLE_LABEL,
   fetchAnnouncements,
+  fetchMemberEvents,
+  fetchMemberJobs,
   fetchMembershipStatus,
+  fetchNotifications,
   fetchMyPayments,
   formatMoney,
   restoreSession,
   siteUrl,
   type AnnouncementItem,
+  type EventItem,
+  type MemberJob,
   type MembershipStatus,
   type MembershipTierValue,
   type PaymentView,
@@ -21,6 +27,8 @@ import {
 import { badgeFor } from "@/lib/brand";
 import { PayMembershipButton } from "@/components/PayMembershipButton";
 import { ShareButtons, addToLinkedInUrl } from "@/components/ShareButtons";
+import { EventCard } from "@/components/EventCard";
+import { openNotifications } from "@/lib/notificationEvents";
 
 const PAYMENT_STATUS: Record<PaymentView["status"], string> = {
   INITIALIZED: "Started",
@@ -54,7 +62,7 @@ const PRIVILEGES: Array<{ title: string; body: string; href: string; icon: strin
   { title: "Study library", body: "PDF books and guides for your membership type.", href: "/dashboard/library", icon: "📚" },
   { title: "Agile job board", body: "Scrum, Product Owner and Agile roles screened for you, updated daily.", href: "/dashboard/jobs", icon: "💼" },
   { title: "Course discounts", body: "Member discounts on Scrum.org, ProKanban.org and Scrum Alliance courses.", href: "/courses", icon: "🏷️" },
-  { title: "Event discounts", body: "Discounted tickets to PACA and partner events, announced in your notifications.", href: "/notifications", icon: "🎟️" },
+  { title: "Event discounts", body: "Member discount codes for PACA and partner events.", href: "#events", icon: "🎟️" },
   { title: "Professional network", body: "Find and connect with PACA members across Africa.", href: "/dashboard/network", icon: "🤝" },
   { title: "Free competency test", body: "Check your level any time and learn from every answer.", href: "/assessment", icon: "📝", free: true },
 ];
@@ -65,6 +73,8 @@ export default function DashboardPage() {
   const [status, setStatus] = useState<MembershipStatus | null>(null);
   const [payments, setPayments] = useState<PaymentView[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [jobs, setJobs] = useState<MemberJob[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [justPaid, setJustPaid] = useState(false);
@@ -79,6 +89,12 @@ export default function DashboardPage() {
       setStatus(s);
       setPayments(p);
       setAnnouncements(a);
+      const ev = await fetchMemberEvents().catch(() => null);
+      setEvents(ev?.items ?? []);
+      if (s.membership?.status === "ACTIVE") {
+        const j = await fetchMemberJobs({ page: 1 }).catch(() => null);
+        setJobs(j?.items.slice(0, 4) ?? []);
+      }
     } catch {
       setError("Could not load your membership status.");
     }
@@ -98,6 +114,16 @@ export default function DashboardPage() {
       setUser(session);
       await loadStatus();
       setLoading(false);
+      // Pop the notifications up once per session when something new is waiting.
+      try {
+        const n = await fetchNotifications();
+        if (n.unread > 0 && !sessionStorage.getItem("paca.notified")) {
+          sessionStorage.setItem("paca.notified", "1");
+          setTimeout(openNotifications, 600);
+        }
+      } catch {
+        // non-critical
+      }
     })();
   }, [router]);
 
@@ -161,6 +187,11 @@ export default function DashboardPage() {
               <div className="min-w-0">
                 <h2 className="font-semibold">{a.title}</h2>
                 <p className="mt-1 line-clamp-2 whitespace-pre-line text-sm" style={{ color: "var(--text-muted)" }}>{a.body}</p>
+                {a.discountCode && (
+                  <p className="mt-2 inline-block rounded-lg border-2 border-dashed px-3 py-1 font-mono text-sm font-bold" style={{ borderColor: "#2e9e5b", color: "#146c3b", background: "#effbf3" }}>
+                    {a.discountCode}
+                  </p>
+                )}
               </div>
             </article>
           ))}
@@ -287,6 +318,64 @@ export default function DashboardPage() {
             );
           })}
         </div>
+      </section>
+
+      {/* latest jobs (paid members) */}
+      {active && (
+        <section className="mt-10">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <h2 className="text-xl font-bold">Latest Agile jobs</h2>
+            <Link href="/dashboard/jobs" className="text-sm font-semibold text-paca-500 hover:underline">All jobs &rarr;</Link>
+          </div>
+          {jobs.length === 0 ? (
+            <p className="mt-3 rounded-2xl border p-6 text-sm" style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "var(--surface)" }}>
+              New roles are added twice a day — they&rsquo;ll appear here and in your notifications.
+            </p>
+          ) : (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {jobs.map((j) => (
+                <a
+                  key={j.id}
+                  href={j.applyUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-start gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:border-paca-500 hover:shadow-md"
+                  style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-paca-50 font-bold text-paca-600">{j.company.charAt(0)}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold">{j.title}</span>
+                    <span className="block truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                      {j.company} · {j.isRemote ? "Remote" : (j.location ?? "")} · {j.agileRole ? AGILE_ROLE_LABEL[j.agileRole] : ""}
+                    </span>
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* events */}
+      <section id="events" className="mt-10 scroll-mt-24">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="text-xl font-bold">Upcoming events</h2>
+          <Link href="/events" className="text-sm font-semibold text-paca-500 hover:underline">All events &rarr;</Link>
+        </div>
+        {events.length === 0 ? (
+          <p className="mt-3 rounded-2xl border p-6 text-sm" style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "var(--surface)" }}>
+            No upcoming events yet. You&rsquo;ll be notified when one is announced{active ? ", with your member discount code" : ""}.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {events.slice(0, 3).map((e) => (
+              <EventCard key={e.id} event={e} compact />
+            ))}
+          </div>
+        )}
+        {!active && events.some((e) => e.memberDiscountPercent) && (
+          <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>🔒 Member discount codes unlock once your membership payment is complete.</p>
+        )}
       </section>
 
       {/* membership + application */}

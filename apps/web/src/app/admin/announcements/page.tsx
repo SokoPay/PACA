@@ -26,6 +26,7 @@ export default function AdminAnnouncementsPage() {
   const [audience, setAudience] = useState<"ALL_USERS" | "ALL_MEMBERS" | "BY_TIER">("ALL_USERS");
   const [tiers, setTiers] = useState<MembershipTierValue[]>([]);
   const [pinDays, setPinDays] = useState("");
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -39,12 +40,13 @@ export default function AdminAnnouncementsPage() {
     if (audience === "BY_TIER" && tiers.length === 0) return setMsg({ ok: false, text: "Choose at least one membership type." });
     setBusy(true);
     try {
-      await createAnnouncement({ title: title.trim(), body: body.trim(), audience, tiers, publish, pinDays: pinDays ? Number(pinDays) : null });
+      await createAnnouncement({ title: title.trim(), body: body.trim(), audience, tiers, publish, pinDays: pinDays ? Number(pinDays) : null, discountCode: code.trim() || null });
       setMsg({ ok: true, text: publish ? "Published — it's on every recipient's dashboard and in their notifications." : "Saved as draft." });
       setTitle("");
       setBody("");
       setTiers([]);
       setPinDays("");
+      setCode("");
       await load();
     } catch (err) {
       setMsg({ ok: false, text: err instanceof ApiError ? (err.fieldErrors[0]?.message ?? err.message) : "Could not save." });
@@ -93,6 +95,15 @@ export default function AdminAnnouncementsPage() {
             <label htmlFor="a-pin" className="mb-1 block text-sm font-medium">Pin for (days)</label>
             <input id="a-pin" inputMode="numeric" value={pinDays} onChange={(e) => setPinDays(e.target.value.replace(/\D/g, "").slice(0, 2))} placeholder="optional" className={field} style={style} />
           </div>
+        </div>
+        <div>
+          <label htmlFor="a-code" className="mb-1 block text-sm font-medium">
+            Discount code <span style={{ color: "var(--text-muted)" }}>(optional — shown with a copy button)</span>
+          </label>
+          <input id="a-code" maxLength={60} value={code} onChange={(e) => setCode(e.target.value)} className={field} style={style} placeholder="e.g. PACA-WEBINAR-25" />
+          {code && audience === "ALL_USERS" && (
+            <p className="mt-1 text-xs" style={{ color: "#b45309" }}>Everyone registered will see this code. Choose “Paid members” to keep it members-only.</p>
+          )}
         </div>
         {audience === "BY_TIER" && (
           <div className="flex flex-wrap gap-2">

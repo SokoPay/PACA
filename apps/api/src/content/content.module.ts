@@ -4,13 +4,12 @@ import {
   CoursesController,
   DirectoryController,
   FaqController,
-  JobsController,
   PartnersController,
   ResourcesController,
 } from "./public-content.controller";
 
 @Module({
-  controllers: [CoursesController, PartnersController, ResourcesController, FaqController, JobsController, DirectoryController],
+  controllers: [CoursesController, PartnersController, ResourcesController, FaqController, DirectoryController],
   providers: [PublicContentService],
 })
 export class ContentModule {}

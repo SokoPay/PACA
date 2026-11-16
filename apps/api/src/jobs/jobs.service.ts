@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException, OnApplicati
 import type { AgileRole, JobSourceKind, JobStatus, Prisma } from "@prisma/client";
 import { PrismaService } from "../common/prisma.service";
 import { AuditService } from "../common/audit.service";
+import { NotificationsService } from "../common/notifications.service";
 import { requirePaidMember } from "../common/membership-access";
 import { loadEnv } from "../config/env";
 import type { AuthenticatedUser } from "../common/guards/jwt-auth.guard";
@@ -33,6 +34,7 @@ export class JobsService implements OnModuleInit, OnApplicationShutdown {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   onModuleInit() {
@@ -108,6 +110,21 @@ export class JobsService implements OnModuleInit, OnApplicationShutdown {
         data: { status: "EXPIRED" },
       });
       this.logger.log(`Job crawl (${trigger}) done: ${JSON.stringify(summary)}`);
+
+      // Jobs are a paid-member benefit: tell paid members when new ones arrive.
+      const newlyPublished = summary.reduce((n, s) => n + s.published, 0);
+      if (newlyPublished > 0) {
+        const members = await this.prisma.membership.findMany({ where: { status: "ACTIVE" }, select: { userId: true } });
+        await this.notifications.notifyMany(
+          members.map((m) => m.userId),
+          {
+            kind: "SYSTEM",
+            title: `${newlyPublished} new Agile job${newlyPublished === 1 ? "" : "s"}`,
+            body: "Fresh Scrum Master, Product Owner and Agile roles were just added to your job board.",
+            link: "/dashboard/jobs",
+          },
+        );
+      }
       return { started: true, ai: this.classifier.usesAi, summary };
     } finally {
       this.running = false;
@@ -210,7 +227,7 @@ export class JobsService implements OnModuleInit, OnApplicationShutdown {
     return { total, page: q.page, pageSize, items };
   }
 
-  /** Public teaser: how many jobs there are and a few titles, without apply links. */
+  /** Unused publicly — jobs are visible to paid members only. */
   async teaser() {
     const [total, latest] = await Promise.all([
       this.prisma.jobListing.count({ where: { status: "PUBLISHED" } }),
