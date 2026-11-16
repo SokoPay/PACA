@@ -16,9 +16,18 @@ export interface RequestContext {
 /** A payment in one of these states can still become SUCCESS (e.g. a delayed mobile-money approval). */
 const OPEN_STATUSES: PaymentStatus[] = ["INITIALIZED", "PENDING", "FAILED", "ABANDONED"];
 
-/** PACA's subscription year ends 31 December (see Membership.currentPeriodEnd). */
-function endOfYearUtc(from: Date): Date {
-  return new Date(Date.UTC(from.getUTCFullYear(), 11, 31, 23, 59, 59, 999));
+/**
+ * A membership lasts one full year from the day it is paid: paid 16 Nov 2026 →
+ * valid until 16 Nov 2027 (not 31 December). A 29 February start ends on
+ * 28 February the following year.
+ */
+export function oneYearFrom(from: Date): Date {
+  const y = from.getUTCFullYear() + 1;
+  const m = from.getUTCMonth();
+  const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return new Date(
+    Date.UTC(y, m, Math.min(from.getUTCDate(), lastDay), from.getUTCHours(), from.getUTCMinutes(), from.getUTCSeconds(), from.getUTCMilliseconds()),
+  );
 }
 
 @Injectable()
@@ -261,7 +270,7 @@ export class PaymentsService {
       const tierConfig = await db.tierConfig.findUniqueOrThrow({ where: { tier } });
 
       const periodStart = paidAt;
-      const periodEnd = endOfYearUtc(paidAt);
+      const periodEnd = oneYearFrom(paidAt);
 
       await db.membership.update({
         where: { id: membership.id },

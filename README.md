@@ -6,7 +6,7 @@ bank), the open assessment, and certificates.
 
 **Member journey:** register → apply for a tier (form + type-checked documents)
 → admin approves → member pays the annual fee in the Paystack popup → membership
-becomes ACTIVE until 31 December → member sits the assessment → a pass issues a
+becomes ACTIVE for one year from the payment date → member sits the assessment → a pass issues a
 certificate that anyone can check at `/verify/<credential-id>`.
 
 ## Project layout
@@ -206,8 +206,8 @@ page, where the member can pay by **card, mobile money or bank**.
    money approvals that complete after the popup closes.
 
 Activation happens exactly once, even if the verify call and the webhook arrive
-together. It sets the membership to `ACTIVE` until 31 December of the payment
-year, records a `membership_periods` row, and grants the first block of
+together. It sets the membership to `ACTIVE` for one full year from the payment
+date (paid 16 Nov 2026 → valid until 16 Nov 2027), records a `membership_periods` row, and grants the first block of
 certification attempts (`exam_entitlements`) for tiers that require the exam.
 Every step is written to the activity log.
 

@@ -334,7 +334,7 @@ model Membership {
   approvedAt         DateTime?
   activatedAt        DateTime? // first successful payment
   currentPeriodStart DateTime?
-  currentPeriodEnd   DateTime? // PACA subscription year ends 31 December
+  currentPeriodEnd   DateTime? // one full year after currentPeriodStart (the payment date)
   lapsedAt           DateTime?
 
   createdAt DateTime @default(now())
@@ -348,8 +348,8 @@ model Membership {
   @@map("memberships")
 }
 
-// One row per subscription year — the audit trail for
-// "was this member in good standing in 2026?"
+// One row per paid membership year (payment date → same date next year) —
+// the audit trail for "was this member in good standing on a given day?"
 model MembershipPeriod {
   id             String         @id @default(cuid())
   membershipId   String
