@@ -276,8 +276,8 @@ export default function DashboardPage() {
                 <Link href={`/members/${membership.memberNumber}`} className="rounded-xl border px-4 py-2 text-sm font-semibold hover:border-paca-500" style={{ borderColor: "var(--border)" }}>
                   View public badge page
                 </Link>
-                <a href={badge.image.src} download={`${badge.slug}-badge.jpg`} className="rounded-xl border px-4 py-2 text-sm font-semibold hover:border-paca-500" style={{ borderColor: "var(--border)" }}>
-                  Download badge
+                <a href={`/members/${encodeURIComponent(membership.memberNumber)}/badge?download=1`} download={`${membership.memberNumber}-PACA-badge.png`} className="rounded-xl border px-4 py-2 text-sm font-semibold hover:border-paca-500" style={{ borderColor: "var(--border)" }}>
+                  Download my badge
                 </a>
               </div>
               <div className="mt-4">
