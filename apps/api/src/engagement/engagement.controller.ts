@@ -31,11 +31,9 @@ const optionalText = (max: number) =>
     .optional()
     .transform((v) => (v === undefined ? undefined : v || null));
 
+// Work, location, education and address come from the membership application
+// (copied on submit), so the profile only takes what the application does not ask.
 const profileSchema = z.object({
-  occupation: optionalText(120),
-  employer: optionalText(120),
-  city: optionalText(80),
-  country: optionalText(80),
   linkedinUrl: z
     .string()
     .trim()

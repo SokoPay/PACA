@@ -274,19 +274,12 @@ export default function AdminApplicationsPage() {
   );
 }
 
-const GENDER: Record<string, string> = { MALE: "Male", FEMALE: "Female", UNSPECIFIED: "Prefer not to say" };
-
 function ProfileFacts({ profile }: { profile: ProfileView | null }) {
-  if (!profile) return <p className="text-sm" style={{ color: "var(--text-muted)" }}>No profile details saved yet.</p>;
-  const address = [profile.addressLine1, profile.addressLine2, profile.city, profile.stateProvince, profile.postalCode, profile.country]
-    .filter(Boolean)
-    .join(", ");
+  // Address, gender, education and work are in the application form below — not repeated here.
+  if (!profile || (!profile.linkedinUrl && !profile.bio)) {
+    return <p className="text-sm" style={{ color: "var(--text-muted)" }}>No LinkedIn link or bio added yet.</p>;
+  }
   const rows: Array<[string, React.ReactNode]> = [
-    ["Gender", GENDER[profile.gender] ?? profile.gender],
-    ["Address", address || "—"],
-    ["Occupation", [profile.occupation, profile.employer].filter(Boolean).join(" at ") || "—"],
-    ["Qualification", [profile.highestQualification, profile.yearOfGraduation].filter(Boolean).join(", ") || "—"],
-    ["Studies", [profile.programOfStudy, profile.institution, profile.institutionLevel && `Level ${profile.institutionLevel}`].filter(Boolean).join(" · ") || "—"],
     [
       "LinkedIn",
       profile.linkedinUrl ? (
@@ -485,7 +478,7 @@ function ApplicationReviewModal({ id, onClose, onDecided }: { id: string; onClos
                 ))}
               </dl>
             </Card>
-            <Card title="Profile and bio">
+            <Card title="LinkedIn and bio">
               <ProfileFacts profile={detail.user.profile} />
             </Card>
           </div>

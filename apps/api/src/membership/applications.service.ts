@@ -9,6 +9,7 @@ import { requireVerifiedEmail } from "../common/require-verified-email";
 import { NotificationsService } from "../common/notifications.service";
 import { MailService } from "../common/mail.service";
 import { brandedEmail } from "../common/branded-email";
+import { syncProfileFromAnswers } from "../common/profile-sync";
 
 export interface RequestContext {
   ipAddress?: string | null;
@@ -229,6 +230,8 @@ export class ApplicationsService {
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
     });
+
+    await syncProfileFromAnswers(this.prisma, user.id, parsed.data);
 
     await this.alertStaff(user.id, application.tier, application.status === "DECLINED" || Boolean(application.decisionReason));
 

@@ -27,23 +27,10 @@ const updateSchema = z.object({
   phone: opt(40),
   profile: z
     .object({
-      gender: z.enum(["MALE", "FEMALE", "UNSPECIFIED"]).optional(),
-      addressLine1: opt(200),
-      addressLine2: opt(200),
-      city: opt(120),
-      stateProvince: opt(120),
-      postalCode: opt(32),
-      country: opt(2),
-      highestQualification: opt(200),
-      yearOfGraduation: z.number().int().min(1940).max(2100).nullable().optional(),
-      occupation: opt(200),
-      employer: opt(200),
-      institution: opt(200),
-      institutionLevel: opt(10),
-      programOfStudy: opt(200),
       linkedinUrl: opt(300),
       bio: opt(2000),
     })
+    .strict()
     .optional(),
 });
 const statusSchema = z.object({ status: z.enum(["ACTIVE", "SUSPENDED"]) });

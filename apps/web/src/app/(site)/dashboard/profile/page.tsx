@@ -27,7 +27,7 @@ export default function ProfilePage() {
     setBusy(true);
     setMsg(null);
     try {
-      setP(await updateMyProfile(p));
+      setP(await updateMyProfile({ linkedinUrl: p.linkedinUrl, bio: p.bio, isPublicInDirectory: p.isPublicInDirectory }));
       setMsg({ ok: true, text: "Profile saved." });
     } catch (err) {
       setMsg({ ok: false, text: err instanceof ApiError ? (err.fieldErrors[0]?.message ?? err.message) : "Could not save." });
@@ -52,23 +52,29 @@ export default function ProfilePage() {
         <p className="mt-8 text-sm" style={{ color: "var(--text-muted)" }}>Loading…</p>
       ) : (
         <form onSubmit={save} className="mt-6 space-y-4 rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="occupation" className="mb-1 block text-sm font-medium">Job title</label>
-              <input id="occupation" value={p.occupation ?? ""} onChange={(e) => set("occupation", e.target.value)} maxLength={120} className={field} style={style} placeholder="e.g. Scrum Master" />
+          <div className="rounded-xl p-4 text-sm" style={{ background: "var(--bg)" }}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-semibold">From your membership application</p>
+              <Link href="/dashboard/applications" className="text-xs font-semibold text-paca-500 hover:underline">
+                Change in My applications →
+              </Link>
             </div>
-            <div>
-              <label htmlFor="employer" className="mb-1 block text-sm font-medium">Employer</label>
-              <input id="employer" value={p.employer ?? ""} onChange={(e) => set("employer", e.target.value)} maxLength={120} className={field} style={style} />
-            </div>
-            <div>
-              <label htmlFor="city" className="mb-1 block text-sm font-medium">City</label>
-              <input id="city" value={p.city ?? ""} onChange={(e) => set("city", e.target.value)} maxLength={80} className={field} style={style} />
-            </div>
-            <div>
-              <label htmlFor="country" className="mb-1 block text-sm font-medium">Country</label>
-              <input id="country" value={p.country ?? ""} onChange={(e) => set("country", e.target.value)} maxLength={80} className={field} style={style} placeholder="e.g. Ghana" />
-            </div>
+            <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+              {[
+                ["Job title", p.occupation],
+                ["Employer", p.employer],
+                ["City", p.city],
+                ["Country", p.country],
+              ].map(([k, v]) => (
+                <div key={k}>
+                  <dt className="text-xs" style={{ color: "var(--text-muted)" }}>{k}</dt>
+                  <dd className="mt-0.5 font-medium">{v || "—"}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
+              These come from your application, so you never have to type them twice.
+            </p>
           </div>
           <div>
             <label htmlFor="linkedin" className="mb-1 block text-sm font-medium">LinkedIn profile</label>

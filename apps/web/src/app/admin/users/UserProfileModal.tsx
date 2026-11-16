@@ -7,27 +7,19 @@ import {
   updateAdminUser,
   type AdminUserDetail,
   type AdminUserUpdate,
-  type ProfileView,
 } from "@/lib/api";
 import { Modal } from "@/components/Modal";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { ApplicationAnswers, StatusPill, documentLabels } from "@/components/ApplicationAnswers";
 
-type ProfileKey = keyof Omit<ProfileView, "isPublicInDirectory" | "gender" | "yearOfGraduation">;
+type ProfileKey = "linkedinUrl" | "bio";
 
+/**
+ * Only what the application does not collect. Address, gender, education and
+ * work details are the member's application answers (shown below) — they are
+ * not repeated or edited here.
+ */
 const PROFILE_FIELDS: Array<{ key: ProfileKey; label: string; wide?: boolean; textarea?: boolean }> = [
-  { key: "addressLine1", label: "Street address", wide: true },
-  { key: "addressLine2", label: "Apartment, suite" },
-  { key: "city", label: "City" },
-  { key: "stateProvince", label: "State / Province" },
-  { key: "postalCode", label: "Postal code" },
-  { key: "country", label: "Country (2-letter code)" },
-  { key: "occupation", label: "Occupation" },
-  { key: "employer", label: "Employer" },
-  { key: "highestQualification", label: "Highest qualification" },
-  { key: "institution", label: "University / institution" },
-  { key: "institutionLevel", label: "Level (100–400)" },
-  { key: "programOfStudy", label: "Programme of study" },
   { key: "linkedinUrl", label: "LinkedIn URL", wide: true },
   { key: "bio", label: "Bio", wide: true, textarea: true },
 ];
@@ -66,8 +58,6 @@ export function UserProfileModal({
       lastName: user.lastName,
       email: user.email,
       phone: user.phone ?? "",
-      gender: p?.gender ?? "UNSPECIFIED",
-      yearOfGraduation: p?.yearOfGraduation ? String(p.yearOfGraduation) : "",
       ...Object.fromEntries(PROFILE_FIELDS.map((f) => [f.key, (p?.[f.key] as string | null) ?? ""])),
     });
     setError(null);
@@ -84,8 +74,6 @@ export function UserProfileModal({
       email: form.email,
       phone: form.phone || null,
       profile: {
-        gender: form.gender as ProfileView["gender"],
-        yearOfGraduation: form.yearOfGraduation ? Number(form.yearOfGraduation) : null,
         ...Object.fromEntries(PROFILE_FIELDS.map((f) => [f.key, form[f.key] || null])),
       },
     };
@@ -158,20 +146,8 @@ export function UserProfileModal({
             </div>
           </section>
           <section>
-            <h3 className="mb-3 text-sm font-bold">Profile</h3>
+            <h3 className="mb-3 text-sm font-bold">LinkedIn and bio</h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Gender
-                <select value={form.gender} onChange={set("gender")} className={`${input} mt-1`} style={inputStyle}>
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                  <option value="UNSPECIFIED">Prefer not to say</option>
-                </select>
-              </label>
-              <label className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Year of graduation
-                <input type="number" value={form.yearOfGraduation} onChange={set("yearOfGraduation")} className={`${input} mt-1`} style={inputStyle} />
-              </label>
               {PROFILE_FIELDS.map((f) => (
                 <label key={f.key} className={`text-xs ${f.wide ? "sm:col-span-2" : ""}`} style={{ color: "var(--text-muted)" }}>
                   {f.label}
@@ -185,7 +161,8 @@ export function UserProfileModal({
             </div>
           </section>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Changes are recorded in the activity log. Application answers are the member&apos;s own submission and are not edited here.
+            Changes are recorded in the activity log. Address, gender, education and work details are part of the
+            member&apos;s application and are not repeated here — the member updates them through My applications.
           </p>
         </div>
       )}
@@ -212,13 +189,12 @@ export function UserProfileModal({
           </section>
 
           <section className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
-            <h3 className="mb-3 text-sm font-bold">Profile and bio</h3>
+            <h3 className="mb-3 text-sm font-bold">LinkedIn and bio</h3>
             {user.profile ? (
               <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
                 {[
-                  ["Gender", { MALE: "Male", FEMALE: "Female", UNSPECIFIED: "Prefer not to say" }[user.profile.gender]],
-                  ["Year of graduation", user.profile.yearOfGraduation ?? "—"],
                   ...PROFILE_FIELDS.map((f) => [f.label, user.profile?.[f.key] || "—"]),
+                  ["Listed in professional network", user.profile.isPublicInDirectory ? "Yes" : "No"],
                 ].map(([k, v]) => (
                   <div key={String(k)} className={k === "Bio" ? "sm:col-span-2" : ""}>
                     <dt className="text-xs" style={{ color: "var(--text-muted)" }}>{k}</dt>

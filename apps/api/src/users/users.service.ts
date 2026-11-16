@@ -14,21 +14,8 @@ export interface AdminUserUpdate {
   lastName?: string;
   email?: string;
   phone?: string | null;
+  /** Only what the application does not collect; personal details live in the application answers. */
   profile?: {
-    gender?: "MALE" | "FEMALE" | "UNSPECIFIED";
-    addressLine1?: string | null;
-    addressLine2?: string | null;
-    city?: string | null;
-    stateProvince?: string | null;
-    postalCode?: string | null;
-    country?: string | null;
-    highestQualification?: string | null;
-    yearOfGraduation?: number | null;
-    occupation?: string | null;
-    employer?: string | null;
-    institution?: string | null;
-    institutionLevel?: string | null;
-    programOfStudy?: string | null;
     linkedinUrl?: string | null;
     bio?: string | null;
   };
