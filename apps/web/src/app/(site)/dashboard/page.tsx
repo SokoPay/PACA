@@ -413,6 +413,11 @@ export default function DashboardPage() {
           ) : (
             <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>No application yet.</p>
           )}
+          {status?.latestApplication && (
+            <Link href="/dashboard/applications" className="mt-4 inline-block rounded-xl border px-4 py-2 text-sm font-semibold hover:border-paca-500" style={{ borderColor: "var(--border)" }}>
+              View or edit my application and documents
+            </Link>
+          )}
         </section>
       </div>
 

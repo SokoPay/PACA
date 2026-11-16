@@ -161,6 +161,9 @@ export function HeaderAuth() {
           <Link href="/dashboard/profile" role="menuitem" className={item}>
             My profile
           </Link>
+          <Link href="/dashboard/applications" role="menuitem" className={item}>
+            My applications
+          </Link>
           <Link href="/exam" role="menuitem" className={item}>
             Certification exam
           </Link>

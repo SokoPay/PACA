@@ -18,6 +18,34 @@ const listQuerySchema = z.object({
 });
 
 const roleSchema = z.object({ role: z.enum(roles) });
+
+const opt = (max: number) => z.string().max(max).nullable().optional();
+const updateSchema = z.object({
+  firstName: z.string().trim().min(1).max(80).optional(),
+  lastName: z.string().trim().min(1).max(80).optional(),
+  email: z.string().trim().email().max(320).optional(),
+  phone: opt(40),
+  profile: z
+    .object({
+      gender: z.enum(["MALE", "FEMALE", "UNSPECIFIED"]).optional(),
+      addressLine1: opt(200),
+      addressLine2: opt(200),
+      city: opt(120),
+      stateProvince: opt(120),
+      postalCode: opt(32),
+      country: opt(2),
+      highestQualification: opt(200),
+      yearOfGraduation: z.number().int().min(1940).max(2100).nullable().optional(),
+      occupation: opt(200),
+      employer: opt(200),
+      institution: opt(200),
+      institutionLevel: opt(10),
+      programOfStudy: opt(200),
+      linkedinUrl: opt(300),
+      bio: opt(2000),
+    })
+    .optional(),
+});
 const statusSchema = z.object({ status: z.enum(["ACTIVE", "SUSPENDED"]) });
 
 /**
@@ -39,6 +67,18 @@ export class UsersController {
   @Get(":id")
   getOne(@Param("id") id: string) {
     return this.users.getOne(id);
+  }
+
+  /** Correct a member's details. SUPERADMIN only, like role changes. */
+  @Roles("SUPERADMIN")
+  @Patch(":id")
+  update(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(updateSchema)) body: z.infer<typeof updateSchema>,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { ip?: string; headers: Record<string, string | undefined> },
+  ) {
+    return this.users.update(id, body, user.id, context(req));
   }
 
   @Roles("SUPERADMIN")

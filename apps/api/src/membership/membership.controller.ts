@@ -53,6 +53,16 @@ export class MembershipController {
     return this.applications.submit(user, id, context(req));
   }
 
+  /** Take a submitted application back out of review to edit it. */
+  @Post("applications/:id/reopen")
+  reopen(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { ip?: string; headers: Record<string, string | undefined> },
+  ) {
+    return this.applications.reopen(user, id, context(req));
+  }
+
   @Post("applications/:id/withdraw")
   withdraw(
     @Param("id") id: string,

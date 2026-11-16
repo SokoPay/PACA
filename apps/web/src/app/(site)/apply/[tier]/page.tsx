@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ApiError,
   deleteApplicationDocument,
+  fetchMyApplications,
   fetchTiers,
   formatUsd,
   restoreSession,
@@ -44,6 +45,8 @@ export default function ApplyPage({ params }: { params: Promise<{ tier: string }
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [decisionReason, setDecisionReason] = useState<string | null>(null);
+  const [inReview, setInReview] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -60,6 +63,23 @@ export default function ApplyPage({ params }: { params: Promise<{ tier: string }
           setError("That membership type does not exist.");
         } else {
           setTier(found);
+          // Pick up where the member left off: a draft, or a declined application to fix and resubmit.
+          const mine = await fetchMyApplications().catch(() => []);
+          const existing = mine.find((a) => a.tier === found.tier && (a.status === "DRAFT" || a.status === "DECLINED"));
+          if (existing) {
+            setApplicationId(existing.id);
+            setDocuments(existing.documents);
+            setDecisionReason(existing.decisionReason);
+            setAnswers(
+              Object.fromEntries(
+                Object.entries(existing.answers ?? {})
+                  .filter(([, v]) => v !== null && v !== undefined)
+                  .map(([k, v]) => [k, String(v)]),
+              ),
+            );
+          } else if (mine.some((a) => a.tier === found.tier && (a.status === "SUBMITTED" || a.status === "UNDER_REVIEW"))) {
+            setInReview(true);
+          }
         }
       } catch {
         setError("Could not load the application form. Please try again.");
@@ -204,12 +224,17 @@ export default function ApplyPage({ params }: { params: Promise<{ tier: string }
           Your {tier.displayName} application is with the review panel. We will email you when there is a decision.
           You will only be asked to pay the {formatUsd(tier.priceUsdCents)} subscription once you are approved.
         </p>
-        <Link
-          href="/dashboard"
-          className="mt-6 inline-block rounded-lg bg-paca-500 px-6 py-3 text-sm font-semibold text-white hover:bg-paca-600"
-        >
-          Go to your dashboard
-        </Link>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Link
+            href="/dashboard/applications"
+            className="inline-block rounded-lg bg-paca-500 px-6 py-3 text-sm font-semibold text-white hover:bg-paca-600"
+          >
+            View my application
+          </Link>
+          <Link href="/dashboard" className="inline-block rounded-lg border px-6 py-3 text-sm font-semibold" style={{ borderColor: "var(--border)" }}>
+            Go to your dashboard
+          </Link>
+        </div>
       </main>
     );
   }
@@ -225,6 +250,23 @@ export default function ApplyPage({ params }: { params: Promise<{ tier: string }
       </Link>
 
       <h1 className="mt-3 text-2xl font-bold tracking-tight">Apply for {tier.displayName}</h1>
+
+      {decisionReason && (
+        <div className="mt-5 rounded-xl border-l-4 px-4 py-3 text-sm" style={{ borderColor: "#c0392b", background: "#fdecea", color: "#7a1d14" }}>
+          <div className="font-bold">The review panel asked you to change this</div>
+          <p className="mt-1 whitespace-pre-wrap">{decisionReason}</p>
+          <p className="mt-2 text-xs">Your previous answers and files are filled in below. Update them, then submit again.</p>
+        </div>
+      )}
+      {inReview && (
+        <div className="mt-5 rounded-xl px-4 py-3 text-sm" style={{ background: "#e6f1ff", color: "#003f8a" }}>
+          You already submitted this application and it is waiting for review. To change it, open{" "}
+          <Link href="/dashboard/applications" className="font-semibold underline">
+            My applications
+          </Link>{" "}
+          and press Edit.
+        </div>
+      )}
 
       {/* progress */}
       <div className="mt-6 flex gap-1.5" aria-label={`Step ${step + 1} of ${totalSteps}`}>
@@ -283,7 +325,8 @@ export default function ApplyPage({ params }: { params: Promise<{ tier: string }
         <section className="mt-8">
           <h2 className="font-semibold">Supporting documents</h2>
           <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
-            Your application needs the following. Uploads are stored privately and shared only with the review panel.
+            Your application needs the following. PDF, Word (.docx/.doc), JPEG or PNG files up to 8MB. Uploads are stored
+          privately and shared only with the review panel.
           </p>
 
           {docError && (
@@ -321,7 +364,7 @@ export default function ApplyPage({ params }: { params: Promise<{ tier: string }
                           {busy ? "Uploading…" : "Replace"}
                           <input
                             type="file"
-                            accept="application/pdf,image/jpeg,image/png"
+                            accept="application/pdf,image/jpeg,image/png,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                             className="hidden"
                             disabled={busy}
                             onChange={(e) => {
@@ -349,7 +392,7 @@ export default function ApplyPage({ params }: { params: Promise<{ tier: string }
                         {busy ? "Uploading…" : "Upload"}
                         <input
                           type="file"
-                          accept="application/pdf,image/jpeg,image/png"
+                          accept="application/pdf,image/jpeg,image/png,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                           className="hidden"
                           disabled={busy}
                           onChange={(e) => {

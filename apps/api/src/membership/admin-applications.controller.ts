@@ -14,6 +14,7 @@ const tiers = ["STUDENT", "PROFESSIONAL", "EXECUTIVE", "FELLOW", "RETIRED"] as c
 
 const listQuerySchema = z.object({
   status: z.enum(statuses).optional(),
+  query: z.string().trim().max(200).optional(),
   tier: z.enum(tiers).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
@@ -53,12 +54,23 @@ export class AdminApplicationsController {
   async downloadDocument(
     @Param("id") id: string,
     @Param("documentId") documentId: string,
+    @Query("download") download: string | undefined,
     @Res({ passthrough: true }) res: FastifyReply,
   ): Promise<StreamableFile> {
     const file = await this.documents.resolveFile(id, documentId);
     res.header("Content-Type", file.mimeType);
-    res.header("Content-Disposition", `inline; filename="${encodeURIComponent(file.originalName)}"`);
+    res.header("X-Content-Type-Options", "nosniff");
+    res.header(
+      "Content-Disposition",
+      `${download !== undefined ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+    );
     return new StreamableFile(createReadStream(file.absolutePath));
+  }
+
+  /** Word files rendered as safe HTML so reviewers can read them on the page. */
+  @Get(":id/documents/:documentId/preview")
+  previewDocument(@Param("id") id: string, @Param("documentId") documentId: string) {
+    return this.documents.preview(id, documentId);
   }
 
   @Post(":id/approve")

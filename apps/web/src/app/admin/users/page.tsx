@@ -14,6 +14,7 @@ import {
   type AdminUserStatus,
   type SessionUser,
 } from "@/lib/api";
+import { UserProfileModal } from "./UserProfileModal";
 
 const ROLES: AdminRole[] = ["MEMBER", "REVIEWER", "ADMIN", "SUPERADMIN"];
 const STATUSES: AdminUserStatus[] = ["PENDING_VERIFICATION", "ACTIVE", "SUSPENDED", "DELETED"];
@@ -37,6 +38,7 @@ export default function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState<AdminUserStatus | "">("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<AdminUserListItem | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   // ---------------------------------------------------------------- session
   useEffect(() => {
@@ -238,7 +240,9 @@ export default function AdminUsersPage() {
               return (
                 <tr key={u.id} className="border-b" style={{ borderColor: "var(--border)" }}>
                   <td className="py-2 pr-3">
-                    {u.firstName} {u.lastName}
+                    <button onClick={() => setViewingId(u.id)} className="text-left font-semibold text-paca-500 hover:underline">
+                      {u.firstName} {u.lastName}
+                    </button>
                     {isSelf && <span style={{ color: "var(--text-muted)" }}> (you)</span>}
                   </td>
                   <td className="py-2 pr-3">{u.email}</td>
@@ -266,6 +270,13 @@ export default function AdminUsersPage() {
                   <td className="py-2 pr-3">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : "—"}</td>
                   <td className="py-2 pr-3">
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setViewingId(u.id)}
+                        className="rounded border px-2 py-1 text-xs font-semibold text-paca-500"
+                        style={{ borderColor: "var(--border)" }}
+                      >
+                        {canEditRoles ? "View / edit" : "View"}
+                      </button>
                       {u.status !== "DELETED" && (
                         <button
                           disabled={isSelf || busy}
@@ -350,6 +361,18 @@ export default function AdminUsersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {viewingId && (
+        <UserProfileModal
+          userId={viewingId}
+          canEdit={canEditRoles}
+          onClose={() => setViewingId(null)}
+          onSaved={(message) => {
+            flash(message);
+            void load();
+          }}
+        />
       )}
 
       {toast && (

@@ -6,6 +6,7 @@ import type { DocumentKind } from "@prisma/client";
 import { PrismaService } from "../common/prisma.service";
 import { AuditService } from "../common/audit.service";
 import { VirusScanService } from "../common/virus-scan.service";
+import { docxToHtml } from "../common/docx-preview";
 
 export interface RequestContext {
   ipAddress?: string | null;
@@ -21,7 +22,9 @@ export interface IncomingFile {
 /** Mirrors ApplicationsService's own rule: only a draft or a declined application can still be edited. */
 const EDITABLE = new Set(["DRAFT", "DECLINED"]);
 
-const ALLOWED_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
+const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const DOC = "application/msword";
+const ALLOWED_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", DOCX, DOC]);
 const MAX_BYTES = 8 * 1024 * 1024;
 
 /**
@@ -36,14 +39,28 @@ const UPLOAD_ROOT = path.join(path.resolve(process.env.UPLOAD_DIR ?? path.join(p
  * file labelled "application/pdf" would be stored and later served to a
  * reviewer's browser.
  */
-function sniffType(buffer: Buffer): "application/pdf" | "image/png" | "image/jpeg" | null {
+function sniffType(buffer: Buffer, filename: string): string | null {
   if (buffer.subarray(0, 5).toString("latin1") === "%PDF-") return "application/pdf";
+  // .docx is a ZIP whose entry names (stored uncompressed) include word/document.xml.
+  if (buffer.readUInt32LE(0) === 0x04034b50 && buffer.includes("word/document.xml", 0, "latin1")) return DOCX;
+  // Legacy .doc is an OLE compound file; the same container is used by .xls/.ppt, so require the .doc name too.
+  if (
+    buffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) &&
+    /\.doc$/i.test(filename)
+  )
+    return DOC;
   if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
   if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
   return null;
 }
 
-const EXTENSION: Record<string, string> = { "application/pdf": ".pdf", "image/png": ".png", "image/jpeg": ".jpg" };
+const EXTENSION: Record<string, string> = {
+  "application/pdf": ".pdf",
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  [DOCX]: ".docx",
+  [DOC]: ".doc",
+};
 
 @Injectable()
 export class DocumentsService {
@@ -83,9 +100,9 @@ export class DocumentsService {
 
     if (file.buffer.length === 0) throw new BadRequestException("The uploaded file is empty");
     if (file.buffer.length > MAX_BYTES) throw new BadRequestException("Files must be 8MB or smaller");
-    const mimeType = sniffType(file.buffer);
+    const mimeType = sniffType(file.buffer, file.filename);
     if (!mimeType || !ALLOWED_MIME_TYPES.has(mimeType)) {
-      throw new BadRequestException("Only PDF, JPEG or PNG files are accepted");
+      throw new BadRequestException("Only PDF, Word (.docx or .doc), JPEG or PNG files are accepted");
     }
 
     // Scan before anything touches disk. A scanner failure rejects the upload
@@ -189,6 +206,16 @@ export class DocumentsService {
     return { absolutePath, mimeType: document.mimeType, originalName: document.originalName };
   }
 
+  /**
+   * On-page preview for Word files (PDF and images display natively in the browser).
+   * Returns sanitised HTML for .docx; .doc (old binary Word) has no preview.
+   */
+  async preview(applicationId: string, documentId: string): Promise<{ html: string | null }> {
+    const file = await this.resolveFile(applicationId, documentId);
+    if (file.mimeType !== DOCX) return { html: null };
+    return { html: docxToHtml(await fs.readFile(file.absolutePath)) };
+  }
+
   private toView(document: {
     id: string;
     kind: DocumentKind;
@@ -196,6 +223,7 @@ export class DocumentsService {
     sizeBytes: number;
     scanStatus: string;
     uploadedAt: Date;
+    mimeType: string;
   }) {
     return {
       id: document.id,
@@ -204,6 +232,7 @@ export class DocumentsService {
       sizeBytes: document.sizeBytes,
       scanStatus: document.scanStatus,
       uploadedAt: document.uploadedAt,
+      mimeType: document.mimeType,
     };
   }
 }

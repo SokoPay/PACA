@@ -9,51 +9,50 @@ import {
   fetchApplication,
   fetchApplications,
   restoreSession,
-  viewApplicationDocument,
   type AdminApplicationDetail,
   type AdminApplicationListItem,
   type AdminApplicationStatus,
   type MembershipTierValue,
+  type ProfileView,
   type SessionUser,
 } from "@/lib/api";
+import { Modal } from "@/components/Modal";
+import { DocumentViewer } from "@/components/DocumentViewer";
+import { ApplicationAnswers, StatusPill, documentLabels } from "@/components/ApplicationAnswers";
 
-const STATUSES: AdminApplicationStatus[] = ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "APPROVED", "DECLINED", "WITHDRAWN"];
+const STATUS_TABS: Array<{ value: AdminApplicationStatus | ""; label: string }> = [
+  { value: "SUBMITTED", label: "Awaiting review" },
+  { value: "UNDER_REVIEW", label: "Under review" },
+  { value: "DECLINED", label: "Changes requested" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "DRAFT", label: "Drafts (not submitted)" },
+  { value: "WITHDRAWN", label: "Withdrawn" },
+  { value: "", label: "All" },
+];
 const TIERS: MembershipTierValue[] = ["STUDENT", "PROFESSIONAL", "EXECUTIVE", "FELLOW", "RETIRED"];
 const DECIDABLE = new Set<AdminApplicationStatus>(["SUBMITTED", "UNDER_REVIEW"]);
-const PAGE_SIZE = 20;
-const SCAN_LABEL: Record<string, string> = {
-  CLEAN: "Scanned · clean",
-  PENDING: "Not scanned",
-  INFECTED: "Infected",
-  ERROR: "Scan error",
-};
+const PAGE_SIZE = 25;
+const fmtDate = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
 
 export default function AdminApplicationsPage() {
   const router = useRouter();
-
   const [me, setMe] = useState<SessionUser | null>(null);
-  const [checking, setChecking] = useState(true);
 
   const [items, setItems] = useState<AdminApplicationListItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState<Partial<Record<AdminApplicationStatus, number>>>({});
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<AdminApplicationStatus | "">("SUBMITTED");
   const [tierFilter, setTierFilter] = useState<MembershipTierValue | "">("");
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<AdminApplicationDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  const [decliningTarget, setDecliningTarget] = useState<{ id: string; email: string } | null>(null);
-  const [declineReason, setDeclineReason] = useState("");
-  const [approveNotes, setApproveNotes] = useState("");
-
-  // ---------------------------------------------------------------- session
   useEffect(() => {
     restoreSession().then((session) => {
       if (!session || session.role === "MEMBER" || session.role === "REVIEWER") {
@@ -61,123 +60,48 @@ export default function AdminApplicationsPage() {
         return;
       }
       setMe(session);
-      setChecking(false);
     });
   }, [router]);
 
-  // ---------------------------------------------------------------- list
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchApplications({
+      const r = await fetchApplications({
         status: statusFilter || undefined,
         tier: tierFilter || undefined,
+        query: query || undefined,
         page,
         pageSize: PAGE_SIZE,
       });
-      setItems(result.items);
-      setTotal(result.total);
+      setItems(r.items);
+      setTotal(r.total);
+      setCounts(r.counts ?? {});
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not load applications.");
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, tierFilter, page]);
+  }, [statusFilter, tierFilter, query, page]);
 
   useEffect(() => {
-    if (!checking && me) void load();
-  }, [checking, me, load]);
-
-  // ---------------------------------------------------------------- detail
-  const loadDetail = useCallback(async (id: string) => {
-    setDetailLoading(true);
-    setDetail(null);
-    try {
-      setDetail(await fetchApplication(id));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load this application.");
-    } finally {
-      setDetailLoading(false);
-    }
-  }, []);
+    if (me) void load();
+  }, [me, load]);
 
   useEffect(() => {
-    if (selectedId) void loadDetail(selectedId);
-  }, [selectedId, loadDetail]);
+    const t = setTimeout(() => {
+      setPage(1);
+      setQuery(search.trim());
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
 
   function flash(message: string) {
     setToast(message);
-    setTimeout(() => setToast(null), 2600);
+    setTimeout(() => setToast(null), 3500);
   }
 
-  function removeFromList(id: string) {
-    setItems((prev) => prev.filter((i) => i.id !== id));
-    setTotal((t) => Math.max(0, t - 1));
-    if (selectedId === id) {
-      setSelectedId(null);
-      setDetail(null);
-    }
-  }
-
-  async function doApprove(id: string, tier: string, email: string, notes?: string) {
-    setBusyId(id);
-    setError(null);
-    try {
-      await approveApplication(id, notes);
-      flash(`Approved — ${email} can now pay for ${tier}`);
-      setApproveNotes("");
-      removeFromList(id);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not approve.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function doDecline() {
-    if (!decliningTarget || declineReason.trim().length < 3) return;
-    setBusyId(decliningTarget.id);
-    setError(null);
-    try {
-      await declineApplication(decliningTarget.id, declineReason.trim());
-      flash("Declined");
-      setDeclineReason("");
-      removeFromList(decliningTarget.id);
-      setDecliningTarget(null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not decline.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  /** The inline per-row dropdown — approve/decline without opening the detail pane. */
-  function RowActions({ item }: { item: AdminApplicationListItem }) {
-    if (!DECIDABLE.has(item.status)) return <span style={{ color: "var(--text-muted)" }}>—</span>;
-    return (
-      <select
-        value=""
-        disabled={busyId === item.id}
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) => {
-          const action = e.target.value;
-          if (action === "APPROVE") void doApprove(item.id, item.tier, item.user.email);
-          else if (action === "DECLINE") setDecliningTarget({ id: item.id, email: item.user.email });
-        }}
-        className="rounded border px-2 py-1 text-xs"
-        style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
-      >
-        <option value="">{busyId === item.id ? "Working…" : "Actions ▾"}</option>
-        <option value="APPROVE">Approve</option>
-        <option value="DECLINE">Decline</option>
-      </select>
-    );
-  }
-
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-  if (checking) {
+  if (!me) {
     return (
       <main className="flex h-full items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
         Loading…
@@ -185,303 +109,434 @@ export default function AdminApplicationsPage() {
     );
   }
 
-  return (
-    <main className="mx-auto flex h-full max-w-[1700px] flex-col">
-      {/* ---------------------------------------------------------- header */}
-      <header
-        className="flex shrink-0 flex-wrap items-center gap-6 border-b px-6 py-3"
-        style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-      >
-        <h1 className="text-sm font-semibold">Membership applications</h1>
-        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-          {total} application{total === 1 ? "" : "s"}
-        </span>
-      </header>
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const allCount = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
 
-      {/* ---------------------------------------------------------- filters */}
-      <div
-        className="flex shrink-0 flex-wrap items-center gap-3 border-b px-6 py-2 text-xs"
-        style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-      >
-        <select
-          value={statusFilter}
-          onChange={(e) => {
-            setPage(1);
-            setStatusFilter(e.target.value as AdminApplicationStatus | "");
-          }}
-          className="rounded border px-2 py-1"
-          style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
-        >
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <select
-          value={tierFilter}
-          onChange={(e) => {
-            setPage(1);
-            setTierFilter(e.target.value as MembershipTierValue | "");
-          }}
-          className="rounded border px-2 py-1"
-          style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
-        >
-          <option value="">All tiers</option>
-          {TIERS.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        {loading && <span style={{ color: "var(--text-muted)" }}>Loading…</span>}
+  return (
+    <main className="mx-auto max-w-[1400px] p-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold">Membership applications</h1>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+            Click an applicant to see all their details and documents, then approve or request changes.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name or email…"
+            className="w-60 rounded-lg border px-3 py-2 outline-none focus:border-paca-500"
+            style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
+          />
+          <select
+            value={tierFilter}
+            onChange={(e) => {
+              setPage(1);
+              setTierFilter(e.target.value as MembershipTierValue | "");
+            }}
+            className="rounded-lg border px-3 py-2"
+            style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
+          >
+            <option value="">All membership types</option>
+            {TIERS.map((t) => (
+              <option key={t} value={t}>
+                {t.charAt(0) + t.slice(1).toLowerCase()}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* status tabs with counts */}
+      <div className="mt-5 flex flex-wrap gap-2">
+        {STATUS_TABS.map((t) => {
+          const active = statusFilter === t.value;
+          const n = t.value ? (counts[t.value] ?? 0) : allCount;
+          return (
+            <button
+              key={t.label}
+              onClick={() => {
+                setPage(1);
+                setStatusFilter(t.value);
+              }}
+              className="rounded-full border px-3.5 py-1.5 text-sm font-semibold transition"
+              style={
+                active
+                  ? { background: "var(--color-paca-500)", borderColor: "var(--color-paca-500)", color: "white" }
+                  : { borderColor: "var(--border)", background: "var(--surface)" }
+              }
+            >
+              {t.label} <span className={active ? "opacity-90" : "text-paca-500"}>{n}</span>
+            </button>
+          );
+        })}
       </div>
 
       {error && (
-        <div role="alert" className="shrink-0 px-6 py-2 text-sm" style={{ background: "#c0392b1a", color: "#c0392b" }}>
+        <div role="alert" className="mt-4 rounded-lg px-4 py-2 text-sm" style={{ background: "#c0392b1a", color: "#c0392b" }}>
           {error}
-          <button onClick={() => setError(null)} className="ml-3 underline underline-offset-2">
-            dismiss
+        </div>
+      )}
+      {toast && (
+        <div className="mt-4 rounded-lg px-4 py-2 text-sm font-medium" style={{ background: "#d4f5e2", color: "#146c3b" }}>
+          {toast}
+        </div>
+      )}
+
+      <div className="mt-4 overflow-x-auto rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+        <table className="w-full min-w-[720px] text-left text-sm">
+          <thead>
+            <tr className="border-b text-xs uppercase tracking-wide" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+              <th className="px-4 py-3">Applicant</th>
+              <th className="px-4 py-3">Membership type</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Documents</th>
+              <th className="px-4 py-3">Submitted</th>
+              <th className="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((a) => (
+              <tr
+                key={a.id}
+                onClick={() => setOpenId(a.id)}
+                className="cursor-pointer border-b transition hover:bg-[var(--bg)]"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <td className="px-4 py-3">
+                  <div className="font-semibold">
+                    {a.user.firstName} {a.user.lastName}
+                  </div>
+                  <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    {a.user.email}
+                  </div>
+                </td>
+                <td className="px-4 py-3">{a.tier.charAt(0) + a.tier.slice(1).toLowerCase()}</td>
+                <td className="px-4 py-3">
+                  <StatusPill status={a.status} />
+                </td>
+                <td className="px-4 py-3">{a.documentCount ?? "—"} file{a.documentCount === 1 ? "" : "s"}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                  {fmtDate(a.submittedAt)}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <span className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-paca-500" style={{ borderColor: "var(--border)" }}>
+                    {DECIDABLE.has(a.status) ? "Review" : "View"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && !loading && (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center" style={{ color: "var(--text-muted)" }}>
+                  No applications here.
+                </td>
+              </tr>
+            )}
+            {loading && items.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center" style={{ color: "var(--text-muted)" }}>
+                  Loading…
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {pageCount > 1 && (
+        <div className="mt-4 flex items-center justify-end gap-3 text-sm">
+          <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg border px-3 py-1.5 disabled:opacity-40" style={{ borderColor: "var(--border)" }}>
+            Previous
+          </button>
+          <span style={{ color: "var(--text-muted)" }}>
+            Page {page} of {pageCount}
+          </span>
+          <button disabled={page >= pageCount} onClick={() => setPage((p) => p + 1)} className="rounded-lg border px-3 py-1.5 disabled:opacity-40" style={{ borderColor: "var(--border)" }}>
+            Next
           </button>
         </div>
       )}
 
-      {/* ---------------------------------------------------------- body */}
-      <div className="flex min-h-0 flex-1">
-        {/* table */}
-        <div className="w-[55%] shrink-0 overflow-y-auto border-r" style={{ borderColor: "var(--border)" }}>
-          <table className="w-full text-left text-sm">
-            <thead className="sticky top-0" style={{ background: "var(--surface)" }}>
-              <tr className="border-b text-xs uppercase tracking-wide" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
-                <th className="py-2 pl-4 pr-3">Applicant</th>
-                <th className="py-2 pr-3">Tier</th>
-                <th className="py-2 pr-3">Status</th>
-                <th className="py-2 pr-3">Submitted</th>
-                <th className="py-2 pr-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((a) => (
-                <tr
-                  key={a.id}
-                  onClick={() => setSelectedId(a.id)}
-                  className="cursor-pointer border-b"
-                  style={{
-                    borderColor: "var(--border)",
-                    background: a.id === selectedId ? "var(--verdict-bg)" : "transparent",
-                  }}
-                >
-                  <td className="py-2 pl-4 pr-3">
-                    <div className="font-medium">
-                      {a.user.firstName} {a.user.lastName}
-                    </div>
-                    <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-                      {a.user.email}
-                    </div>
-                  </td>
-                  <td className="py-2 pr-3">{a.tier}</td>
-                  <td className="py-2 pr-3">{a.status}</td>
-                  <td className="py-2 pr-3 text-xs" style={{ color: "var(--text-muted)" }}>
-                    {a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : "—"}
-                  </td>
-                  <td className="py-2 pr-4">
-                    <RowActions item={a} />
-                  </td>
-                </tr>
-              ))}
-              {items.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center" style={{ color: "var(--text-muted)" }}>
-                    No applications match these filters.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {openId && (
+        <ApplicationReviewModal
+          id={openId}
+          onClose={() => setOpenId(null)}
+          onDecided={(message) => {
+            setOpenId(null);
+            flash(message);
+            void load();
+          }}
+        />
+      )}
+    </main>
+  );
+}
+
+const GENDER: Record<string, string> = { MALE: "Male", FEMALE: "Female", UNSPECIFIED: "Prefer not to say" };
+
+function ProfileFacts({ profile }: { profile: ProfileView | null }) {
+  if (!profile) return <p className="text-sm" style={{ color: "var(--text-muted)" }}>No profile details saved yet.</p>;
+  const address = [profile.addressLine1, profile.addressLine2, profile.city, profile.stateProvince, profile.postalCode, profile.country]
+    .filter(Boolean)
+    .join(", ");
+  const rows: Array<[string, React.ReactNode]> = [
+    ["Gender", GENDER[profile.gender] ?? profile.gender],
+    ["Address", address || "—"],
+    ["Occupation", [profile.occupation, profile.employer].filter(Boolean).join(" at ") || "—"],
+    ["Qualification", [profile.highestQualification, profile.yearOfGraduation].filter(Boolean).join(", ") || "—"],
+    ["Studies", [profile.programOfStudy, profile.institution, profile.institutionLevel && `Level ${profile.institutionLevel}`].filter(Boolean).join(" · ") || "—"],
+    [
+      "LinkedIn",
+      profile.linkedinUrl ? (
+        <a href={profile.linkedinUrl} target="_blank" rel="noreferrer" className="break-all text-paca-500 hover:underline">
+          {profile.linkedinUrl}
+        </a>
+      ) : (
+        "—"
+      ),
+    ],
+  ];
+  return (
+    <div>
+      <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+        {rows.map(([k, v]) => (
+          <div key={k}>
+            <dt className="text-xs" style={{ color: "var(--text-muted)" }}>{k}</dt>
+            <dd className="mt-0.5 text-sm font-medium">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      {profile.bio && (
+        <div className="mt-3">
+          <div className="text-xs" style={{ color: "var(--text-muted)" }}>Bio</div>
+          <p className="mt-0.5 whitespace-pre-wrap text-sm">{profile.bio}</p>
         </div>
+      )}
+    </div>
+  );
+}
 
-        {/* detail */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {detailLoading && <p style={{ color: "var(--text-muted)" }}>Loading…</p>}
+function Card({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
+  return (
+    <section className="rounded-xl border p-4 sm:p-5" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-bold">{title}</h3>
+        {right}
+      </div>
+      {children}
+    </section>
+  );
+}
 
-          {!detailLoading && !detail && (
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Select a row to see the full application, or use the Actions dropdown for a quick decision.
-            </p>
+function ApplicationReviewModal({ id, onClose, onDecided }: { id: string; onClose: () => void; onDecided: (message: string) => void }) {
+  const [detail, setDetail] = useState<AdminApplicationDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [declining, setDeclining] = useState(false);
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    fetchApplication(id)
+      .then(setDetail)
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Could not load this application."));
+  }, [id]);
+
+  async function approve() {
+    if (!detail) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await approveApplication(detail.id, notes.trim() || undefined);
+      onDecided(`Approved ${detail.user.firstName} ${detail.user.lastName}. They have been emailed and can now pay.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not approve.");
+      setBusy(false);
+    }
+  }
+
+  async function decline() {
+    if (!detail || reason.trim().length < 3) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await declineApplication(detail.id, reason.trim());
+      onDecided(`Changes requested from ${detail.user.firstName} ${detail.user.lastName}. They have been emailed the reason.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not decline.");
+      setBusy(false);
+    }
+  }
+
+  const decidable = detail ? DECIDABLE.has(detail.status) : false;
+  const name = detail ? `${detail.user.firstName} ${detail.user.lastName}` : "Application";
+
+  const footer = detail && decidable && (
+    <div>
+      {error && <p className="mb-3 text-sm text-[#c0392b]">{error}</p>}
+      {declining ? (
+        <div>
+          <label className="text-sm font-semibold">What does the applicant need to change? (they will see this and get it by email)</label>
+          <textarea
+            rows={3}
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Your student ID is not readable — please upload a clearer photo of both sides."
+            className="mt-2 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-paca-500"
+            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              disabled={busy || reason.trim().length < 3}
+              onClick={() => void decline()}
+              className="rounded-lg bg-[#c0392b] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {busy ? "Sending…" : "Send back for changes"}
+            </button>
+            <button onClick={() => setDeclining(false)} className="rounded-lg border px-4 py-2 text-sm font-semibold" style={{ borderColor: "var(--border)" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Internal reviewer note (optional, never shown to the applicant)"
+            className="min-w-[240px] flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:border-paca-500"
+            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
+          />
+          <button
+            disabled={busy}
+            onClick={() => void approve()}
+            className="rounded-lg bg-[#1f9d55] px-5 py-2 text-sm font-semibold text-white hover:bg-[#178a49] disabled:opacity-50"
+          >
+            {busy ? "Approving…" : "✓ Approve"}
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => setDeclining(true)}
+            className="rounded-lg border border-[#c0392b] px-5 py-2 text-sm font-semibold text-[#c0392b] disabled:opacity-50"
+          >
+            Request changes / decline
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={name}
+      subtitle={
+        detail && (
+          <span className="flex flex-wrap items-center gap-2">
+            <StatusPill status={detail.status} />
+            <span>{detail.tier.charAt(0) + detail.tier.slice(1).toLowerCase()} application</span>
+            <span>· submitted {fmtDate(detail.submittedAt)}</span>
+          </span>
+        )
+      }
+      footer={footer || undefined}
+    >
+      {!detail && !error && <p style={{ color: "var(--text-muted)" }}>Loading application…</p>}
+      {!detail && error && <p className="text-[#c0392b]">{error}</p>}
+      {detail && (
+        <div className="space-y-5">
+          {detail.decisionReason && (
+            <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "#fdf2d0", color: "#8a6100" }}>
+              <strong>{detail.status === "DECLINED" ? "Changes requested:" : "Previously sent back because:"}</strong> {detail.decisionReason}
+            </div>
           )}
 
-          {!detailLoading && detail && (
-            <article>
-              <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-                <span className="rounded px-2 py-1 font-semibold" style={{ background: "var(--verdict-bg)", color: "var(--paca-500)" }}>
-                  {detail.status}
-                </span>
-                <span style={{ color: "var(--text-muted)" }}>· {detail.tier}</span>
-              </div>
-
-              <h2 className="text-base font-semibold">
-                {detail.user.firstName} {detail.user.lastName}
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-                {detail.user.email}
-                {detail.user.phone ? ` · ${detail.user.phone}` : ""}
-              </p>
-
-              {detail.decisionReason && (
-                <p className="mt-4 rounded-lg px-3 py-2 text-xs" style={{ background: "#c0392b1a", color: "#c0392b" }}>
-                  Previous decision: {detail.decisionReason}
-                </p>
-              )}
-
-              <h3 className="mt-6 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-                Application answers
-              </h3>
-              <dl className="mt-2 space-y-2 text-sm">
-                {Object.entries(detail.answers).length === 0 && (
-                  <p style={{ color: "var(--text-muted)" }}>No answers submitted.</p>
-                )}
-                {Object.entries(detail.answers).map(([key, value]) => (
-                  <div key={key} className="flex justify-between gap-4 border-b pb-2" style={{ borderColor: "var(--border)" }}>
-                    <dt style={{ color: "var(--text-muted)" }}>{key}</dt>
-                    <dd className="text-right">{String(value)}</dd>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card title="Applicant">
+              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                {[
+                  ["Full name", name],
+                  [
+                    "Email",
+                    <span key="e">
+                      <a href={`mailto:${detail.user.email}`} className="break-all text-paca-500 hover:underline">
+                        {detail.user.email}
+                      </a>
+                      {detail.user.emailVerifiedAt ? (
+                        <span className="ml-1 text-xs text-[#146c3b]">✓ verified</span>
+                      ) : (
+                        <span className="ml-1 text-xs text-[#b42318]">not verified</span>
+                      )}
+                    </span>,
+                  ],
+                  ["Phone", detail.user.phone ?? "—"],
+                  ["Account created", fmtDate(detail.user.createdAt)],
+                  ["Member ID", detail.user.membership?.memberNumber ?? "Not a member yet"],
+                  ["Membership status", detail.user.membership?.status.replace(/_/g, " ").toLowerCase() ?? "—"],
+                ].map(([k, v]) => (
+                  <div key={String(k)}>
+                    <dt className="text-xs" style={{ color: "var(--text-muted)" }}>{k}</dt>
+                    <dd className="mt-0.5 text-sm font-medium">{v}</dd>
                   </div>
                 ))}
               </dl>
+            </Card>
+            <Card title="Profile and bio">
+              <ProfileFacts profile={detail.user.profile} />
+            </Card>
+          </div>
 
-              <h3 className="mt-6 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-                Documents
-              </h3>
-              {detail.documents.length === 0 ? (
-                <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
-                  None uploaded.
+          <Card title="Application form">
+            <ApplicationAnswers form={detail.form} answers={detail.answers} />
+          </Card>
+
+          <Card title={`Uploaded documents (${detail.documents.length})`}>
+            <DocumentViewer scope="admin" applicationId={detail.id} documents={detail.documents} labels={documentLabels(detail.form)} />
+            {detail.form.documents
+              .filter((r) => r.required && !detail.documents.some((d) => d.kind === r.kind))
+              .map((r) => (
+                <p key={r.kind} className="mt-2 text-sm text-[#b42318]">
+                  Missing required document: {r.label}
                 </p>
-              ) : (
+              ))}
+          </Card>
+
+          {(detail.history.length > 0 || detail.reviewerNotes || detail.reviewer) && (
+            <Card title="History">
+              {detail.reviewer && (
+                <p className="text-sm">
+                  Last decision by {detail.reviewer.firstName} {detail.reviewer.lastName}
+                  {detail.reviewedAt ? ` on ${fmtDate(detail.reviewedAt)}` : ""}.
+                </p>
+              )}
+              {detail.reviewerNotes && <p className="mt-1 text-sm">Internal note: {detail.reviewerNotes}</p>}
+              {detail.history.length > 0 && (
                 <ul className="mt-2 space-y-1.5 text-sm">
-                  {detail.documents.map((d) => (
-                    <li key={d.id} className="flex items-center justify-between">
-                      <button
-                        onClick={() => void viewApplicationDocument(detail.id, d.id)}
-                        className="text-left text-paca-500 hover:underline"
-                      >
-                        {d.kind} — {d.originalName}
-                      </button>
-                      <span
-                        className="text-xs"
-                        style={{ color: d.scanStatus === "INFECTED" || d.scanStatus === "ERROR" ? "#c0392b" : "var(--text-muted)" }}
-                      >
-                        {SCAN_LABEL[d.scanStatus] ?? d.scanStatus}
-                      </span>
+                  {detail.history.map((h) => (
+                    <li key={h.id} className="flex flex-wrap items-center gap-2">
+                      <StatusPill status={h.status} />
+                      <span>{h.tier.charAt(0) + h.tier.slice(1).toLowerCase()} application · {fmtDate(h.submittedAt)}</span>
+                      {h.decisionReason && <span style={{ color: "var(--text-muted)" }}>— {h.decisionReason}</span>}
                     </li>
                   ))}
                 </ul>
               )}
+            </Card>
+          )}
 
-              {DECIDABLE.has(detail.status) && (
-                <div className="mt-8 border-t pt-6" style={{ borderColor: "var(--border)" }}>
-                  <label className="block text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-                    Reviewer notes (internal, optional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={approveNotes}
-                    onChange={(e) => setApproveNotes(e.target.value)}
-                    className="mt-2 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-paca-500"
-                    style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
-                  />
-                  <div className="mt-4 flex items-center gap-3">
-                    <button
-                      disabled={busyId === detail.id}
-                      onClick={() => void doApprove(detail.id, detail.tier, detail.user.email, approveNotes.trim() || undefined)}
-                      className="rounded-lg bg-paca-500 px-4 py-2 text-sm font-semibold text-white hover:bg-paca-600 disabled:opacity-50"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      disabled={busyId === detail.id}
-                      onClick={() => setDecliningTarget({ id: detail.id, email: detail.user.email })}
-                      className="rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                      style={{ borderColor: "var(--border)", color: "#c0392b" }}
-                    >
-                      Decline
-                    </button>
-                  </div>
-                </div>
-              )}
-            </article>
+          {!decidable && (
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              {detail.status === "DRAFT"
+                ? "This applicant has not submitted yet. You can approve or decline once they press Submit."
+                : "No decision is needed on this application."}
+            </p>
           )}
         </div>
-      </div>
-
-      {/* ---------------------------------------------------------- pagination */}
-      <div
-        className="flex shrink-0 items-center justify-end gap-3 border-t px-6 py-2 text-xs"
-        style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
-      >
-        <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="underline underline-offset-2 disabled:opacity-40">
-          Previous
-        </button>
-        <span>
-          Page {page} of {pageCount}
-        </span>
-        <button
-          disabled={page >= pageCount}
-          onClick={() => setPage((p) => p + 1)}
-          className="underline underline-offset-2 disabled:opacity-40"
-        >
-          Next
-        </button>
-      </div>
-
-      {/* ---------------------------------------------------------- decline modal */}
-      {decliningTarget && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-md rounded-xl border p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <h2 className="text-sm font-semibold">Decline this application</h2>
-            <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-              This reason is shown to the applicant.
-            </p>
-            <textarea
-              autoFocus
-              rows={4}
-              value={declineReason}
-              onChange={(e) => setDeclineReason(e.target.value)}
-              placeholder="e.g. Proof of enrollment does not match the student tier requirements."
-              className="mt-3 w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-paca-500"
-              style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
-            />
-            <div className="mt-4 flex items-center justify-end gap-2 text-sm">
-              <button
-                onClick={() => {
-                  setDecliningTarget(null);
-                  setDeclineReason("");
-                }}
-                className="rounded-lg px-3 py-1.5"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => void doDecline()}
-                disabled={declineReason.trim().length < 3 || busyId === decliningTarget.id}
-                className="rounded-lg px-3 py-1.5 font-semibold text-white disabled:opacity-50"
-                style={{ background: "#c0392b" }}
-              >
-                Decline
-              </button>
-            </div>
-          </div>
-        </div>
       )}
-
-      {toast && (
-        <div
-          className="fixed bottom-5 left-1/2 z-30 -translate-x-1/2 rounded-lg px-4 py-2 text-sm font-medium text-white"
-          style={{ background: "#146b2e" }}
-        >
-          {toast}
-        </div>
-      )}
-    </main>
+    </Modal>
   );
 }

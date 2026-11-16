@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import type { MembershipTier } from "@prisma/client";
 import { PrismaService } from "../common/prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -6,6 +6,9 @@ import { requiredDocuments, schemaForTier, TIER_FORMS } from "./tier-forms";
 import { loadEnv } from "../config/env";
 import type { AuthenticatedUser } from "../common/guards/jwt-auth.guard";
 import { requireVerifiedEmail } from "../common/require-verified-email";
+import { NotificationsService } from "../common/notifications.service";
+import { MailService } from "../common/mail.service";
+import { brandedEmail } from "../common/branded-email";
 
 export interface RequestContext {
   ipAddress?: string | null;
@@ -17,9 +20,13 @@ const EDITABLE = new Set(["DRAFT", "DECLINED"]);
 
 @Injectable()
 export class ApplicationsService {
+  private readonly logger = new Logger(ApplicationsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
+    private readonly mail: MailService,
   ) {}
 
   /** Public: tier catalogue plus the form definition the web app renders. */
@@ -46,16 +53,54 @@ export class ApplicationsService {
     }));
   }
 
+  /** Every application the member has made, with answers, files and the form labels to display them. */
   async myApplications(userId: string) {
-    return this.prisma.membershipApplication.findMany({
+    const rows = await this.prisma.membershipApplication.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      include: {
+      select: {
+        id: true,
+        tier: true,
+        status: true,
+        answers: true,
+        submittedAt: true,
+        reviewedAt: true,
+        decisionReason: true,
+        createdAt: true,
+        updatedAt: true,
         documents: {
-          select: { id: true, kind: true, originalName: true, sizeBytes: true, scanStatus: true, uploadedAt: true },
+          select: { id: true, kind: true, originalName: true, mimeType: true, sizeBytes: true, scanStatus: true, uploadedAt: true },
+          orderBy: { uploadedAt: "asc" },
         },
       },
     });
+    return rows.map((r) => ({ ...r, form: TIER_FORMS[r.tier] }));
+  }
+
+  /**
+   * Pull a submitted application back out of the review queue so the member
+   * can change it. It returns to DRAFT and must be submitted again.
+   */
+  async reopen(user: AuthenticatedUser, applicationId: string, ctx: RequestContext) {
+    const application = await this.prisma.membershipApplication.findUnique({ where: { id: applicationId } });
+    if (!application || application.userId !== user.id) throw new NotFoundException("Application not found");
+    if (EDITABLE.has(application.status)) return application;
+    if (application.status !== "SUBMITTED" && application.status !== "UNDER_REVIEW") {
+      throw new BadRequestException(`An application with status ${application.status} cannot be edited`);
+    }
+    const updated = await this.prisma.membershipApplication.update({
+      where: { id: applicationId },
+      data: { status: "DRAFT" },
+    });
+    await this.audit.record({
+      actorUserId: user.id,
+      action: "application.reopened",
+      entityType: "MembershipApplication",
+      entityId: applicationId,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+    });
+    return updated;
   }
 
   /**
@@ -90,7 +135,8 @@ export class ApplicationsService {
     if (draft) {
       return this.prisma.membershipApplication.update({
         where: { id: draft.id },
-        data: { answers: cleaned as object, status: "DRAFT", decisionReason: null },
+        // decisionReason is kept so the member can still read what to fix.
+        data: { answers: cleaned as object, status: "DRAFT" },
         include: { documents: true },
       });
     }
@@ -169,7 +215,8 @@ export class ApplicationsService {
 
     const updated = await this.prisma.membershipApplication.update({
       where: { id: applicationId },
-      data: { status: "SUBMITTED", submittedAt: new Date(), decisionReason: null },
+      // decisionReason is kept: reviewers see why it was declined last time.
+      data: { status: "SUBMITTED", submittedAt: new Date() },
       include: { documents: true },
     });
 
@@ -183,7 +230,44 @@ export class ApplicationsService {
       userAgent: ctx.userAgent,
     });
 
+    await this.alertStaff(user.id, application.tier, application.status === "DECLINED" || Boolean(application.decisionReason));
+
     return updated;
+  }
+
+  /** Tell every admin a new application is waiting: a bell notification plus an email. Never fails the submission. */
+  private async alertStaff(userId: string, tier: MembershipTier, resubmission: boolean) {
+    try {
+      const [applicant, staff] = await Promise.all([
+        this.prisma.user.findUnique({ where: { id: userId }, select: { firstName: true, lastName: true, email: true } }),
+        this.prisma.user.findMany({
+          where: { role: { in: ["ADMIN", "SUPERADMIN"] }, status: "ACTIVE", deletedAt: null },
+          select: { id: true, email: true, firstName: true },
+        }),
+      ]);
+      if (!applicant || staff.length === 0) return;
+      const who = `${applicant.firstName} ${applicant.lastName}`;
+      const title = resubmission ? `Application resubmitted: ${who}` : `New membership application: ${who}`;
+      const body = `${who} (${applicant.email}) ${resubmission ? "updated and resubmitted" : "submitted"} a ${tier.toLowerCase()} application with documents for review.`;
+      await this.notifications.notifyMany(
+        staff.map((s) => s.id),
+        { kind: "MEMBERSHIP", title, body, link: "/admin/applications" },
+      );
+      const base = loadEnv().WEB_PUBLIC_URL.replace(/\/$/, "");
+      for (const s of staff) {
+        const { html, text } = brandedEmail({
+          firstName: s.firstName,
+          heading: title,
+          paragraphs: [body, "Open the admin applications page to review their details and documents."],
+          cta: { label: "Review application", url: `${base}/admin/applications` },
+        });
+        await this.mail.send({ to: { email: s.email, name: s.firstName }, subject: `PACA: ${title}`, html, text }).catch((err) =>
+          this.logger.warn(`Could not email ${s.email}: ${(err as Error).message}`),
+        );
+      }
+    } catch (err) {
+      this.logger.error(`Could not alert staff about a new application: ${(err as Error).message}`);
+    }
   }
 
   async withdraw(user: AuthenticatedUser, applicationId: string, ctx: RequestContext) {

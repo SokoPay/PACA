@@ -60,14 +60,30 @@ export class DocumentsController {
   async download(
     @Param("applicationId") applicationId: string,
     @Param("documentId") documentId: string,
+    @Query("download") download: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
     @Res({ passthrough: true }) res: FastifyReply,
   ): Promise<StreamableFile> {
     await this.documents.assertOwnedApplication(user.id, applicationId);
     const file = await this.documents.resolveFile(applicationId, documentId);
     res.header("Content-Type", file.mimeType);
-    res.header("Content-Disposition", `inline; filename="${encodeURIComponent(file.originalName)}"`);
+    res.header("X-Content-Type-Options", "nosniff");
+    res.header(
+      "Content-Disposition",
+      `${download !== undefined ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+    );
     return new StreamableFile(createReadStream(file.absolutePath));
+  }
+
+  /** Word files rendered as safe HTML for the on-page viewer. */
+  @Get(":documentId/preview")
+  async preview(
+    @Param("applicationId") applicationId: string,
+    @Param("documentId") documentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.documents.assertOwnedApplication(user.id, applicationId);
+    return this.documents.preview(applicationId, documentId);
   }
 }
 

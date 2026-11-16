@@ -432,6 +432,90 @@ export interface ApplicationDocumentView {
   sizeBytes: number;
   scanStatus: string;
   uploadedAt: string;
+  mimeType?: string;
+}
+
+export type TierFormDef = TierInfo["form"];
+
+/** One application with everything needed to show it: answers, files and the form's labels. */
+export interface ApplicationRecord {
+  id: string;
+  tier: MembershipTierValue;
+  status: AdminApplicationStatus;
+  answers: Record<string, unknown>;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  decisionReason: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  documents: ApplicationDocumentView[];
+  form: TierFormDef;
+}
+
+export interface ProfileView {
+  gender: "MALE" | "FEMALE" | "UNSPECIFIED";
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  stateProvince: string | null;
+  postalCode: string | null;
+  country: string | null;
+  highestQualification: string | null;
+  yearOfGraduation: number | null;
+  occupation: string | null;
+  employer: string | null;
+  institution: string | null;
+  institutionLevel: string | null;
+  programOfStudy: string | null;
+  linkedinUrl: string | null;
+  bio: string | null;
+  isPublicInDirectory?: boolean;
+}
+
+/** The member's own applications, newest first. */
+export function fetchMyApplications(): Promise<ApplicationRecord[]> {
+  return api<ApplicationRecord[]>("/membership/applications");
+}
+
+/** Take a submitted application back out of review so it can be edited. */
+export function reopenApplication(id: string) {
+  return api<{ id: string; status: string }>(`/membership/applications/${id}/reopen`, { method: "POST" });
+}
+
+/** Where a document's file and Word preview live: the member's own route, or the admin route. */
+export type DocumentScope = "member" | "admin";
+function documentBase(scope: DocumentScope, applicationId: string, documentId: string) {
+  return scope === "admin"
+    ? `/admin/applications/${applicationId}/documents/${documentId}`
+    : `/membership/applications/${applicationId}/documents/${documentId}`;
+}
+
+/** Fetches a document with the session's credentials and returns a local blob URL for on-page viewing. */
+export async function fetchDocumentBlobUrl(scope: DocumentScope, applicationId: string, documentId: string): Promise<string> {
+  const path = `${documentBase(scope, applicationId, documentId)}/file`;
+  let res = await rawFetch(path);
+  if (res.status === 401 && getRefreshToken()) {
+    if (await refreshSession()) res = await rawFetch(path);
+  }
+  if (!res.ok) throw await parseError(res);
+  return URL.createObjectURL(await res.blob());
+}
+
+/** Sanitised HTML for a Word (.docx) file; null when there is no preview (e.g. old .doc files). */
+export function fetchDocumentPreview(scope: DocumentScope, applicationId: string, documentId: string) {
+  return api<{ html: string | null }>(`${documentBase(scope, applicationId, documentId)}/preview`);
+}
+
+/** Saves a document to the user's computer under its original name. */
+export async function downloadDocument(scope: DocumentScope, applicationId: string, doc: { id: string; originalName: string }) {
+  const url = await fetchDocumentBlobUrl(scope, applicationId, doc.id);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = doc.originalName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 export function uploadApplicationDocument(applicationId: string, kind: string, file: File): Promise<ApplicationDocumentView> {
@@ -590,6 +674,37 @@ export function deleteUser(id: string): Promise<AdminUserListItem> {
   return api(`/admin/users/${id}`, { method: "DELETE" });
 }
 
+export interface AdminUserDetail extends AdminUserListItem {
+  phone: string | null;
+  emailVerifiedAt: string | null;
+  profile: ProfileView | null;
+  membership: {
+    memberNumber: string;
+    tier: MembershipTierValue;
+    status: string;
+    activatedAt: string | null;
+    currentPeriodEnd: string | null;
+  } | null;
+  applications: ApplicationRecord[];
+}
+
+export function fetchAdminUser(id: string): Promise<AdminUserDetail> {
+  return api(`/admin/users/${id}`);
+}
+
+export interface AdminUserUpdate {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string | null;
+  profile?: Partial<Omit<ProfileView, "isPublicInDirectory">>;
+}
+
+/** SUPERADMIN only. */
+export function updateAdminUser(id: string, body: AdminUserUpdate): Promise<AdminUserDetail> {
+  return api(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+}
+
 // ---------------------------------------------------------------- admin: membership applications
 
 export type AdminApplicationStatus = "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "DECLINED" | "WITHDRAWN";
@@ -603,11 +718,13 @@ export interface AdminApplicationListItem {
   reviewedAt: string | null;
   createdAt: string;
   user: { id: string; email: string; firstName: string; lastName: string };
+  documentCount?: number;
 }
 
 export interface AdminApplicationPage {
   items: AdminApplicationListItem[];
   total: number;
+  counts?: Partial<Record<AdminApplicationStatus, number>>;
   page: number;
   pageSize: number;
 }
@@ -616,19 +733,33 @@ export interface AdminApplicationDetail extends AdminApplicationListItem {
   answers: Record<string, unknown>;
   decisionReason: string | null;
   reviewerNotes: string | null;
-  user: { id: string; email: string; firstName: string; lastName: string; phone: string | null };
-  documents: Array<{
+  reviewer: { firstName: string; lastName: string } | null;
+  user: {
     id: string;
-    kind: string;
-    originalName: string;
-    sizeBytes: number;
-    scanStatus: string;
-    uploadedAt: string;
+    email: string;
+    emailVerifiedAt: string | null;
+    firstName: string;
+    lastName: string;
+    phone: string | null;
+    createdAt: string;
+    profile: ProfileView | null;
+    membership: { memberNumber: string; tier: string; status: string; currentPeriodEnd: string | null } | null;
+  };
+  documents: ApplicationDocumentView[];
+  form: TierFormDef;
+  history: Array<{
+    id: string;
+    tier: MembershipTierValue;
+    status: AdminApplicationStatus;
+    submittedAt: string | null;
+    reviewedAt: string | null;
+    decisionReason: string | null;
   }>;
 }
 
 export function fetchApplications(params: {
   status?: AdminApplicationStatus;
+  query?: string;
   tier?: MembershipTierValue;
   page?: number;
   pageSize?: number;
