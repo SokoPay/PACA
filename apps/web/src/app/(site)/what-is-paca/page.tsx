@@ -1,4 +1,10 @@
 import Link from "next/link";
+import Image, { type StaticImageData } from "next/image";
+import iconStandards from "@/images/icon-benchmark-standards.jpeg";
+import iconSupport from "@/images/icon-comprehensive-support.jpeg";
+import iconRocket from "@/images/icon-growth-rocket.jpeg";
+import iconTrainers from "@/images/icon-experienced-trainers.jpeg";
+import iconCommunity from "@/images/icon-community-network.jpeg";
 import { PageHero } from "@/components/PageHero";
 
 export const metadata = {
@@ -15,13 +21,13 @@ const OBJECTIVES = [
   "Communicate with the public on the career paths available within the community",
 ];
 
-const DIFFERENTIATORS: Array<[string, string]> = [
-  ["Benchmark standards", "High standards for Agile certification, ensuring credibility and recognition across the industry."],
-  ["Comprehensive support", "A digital library, educational materials and a professional community."],
-  ["Tailored learning paths", "Programmes for different levels of expertise and career stages."],
-  ["Experienced trainers", "Courses led by seasoned professionals with real-world experience."],
-  ["Community focus", "A collaborative environment to network, share experience and grow."],
-  ["Continual improvement", "Continuous learning so members stay ahead in a fast-moving field."],
+const DIFFERENTIATORS: Array<[string, string, StaticImageData]> = [
+  ["Benchmark standards", "High standards for Agile certification, ensuring credibility and recognition across the industry.", iconStandards],
+  ["Comprehensive support", "A digital library, educational materials and a professional community.", iconSupport],
+  ["Tailored learning paths", "Programmes for different levels of expertise and career stages.", iconRocket],
+  ["Experienced trainers", "Courses led by seasoned professionals with real-world experience.", iconTrainers],
+  ["Community focus", "A collaborative environment to network, share experience and grow.", iconCommunity],
+  ["Continual improvement", "Continuous learning so members stay ahead in a fast-moving field.", iconStandards],
 ];
 
 export default function WhatIsPacaPage() {
@@ -52,12 +58,19 @@ export default function WhatIsPacaPage() {
       <section className="mt-12">
         <h2 className="text-lg font-semibold">What makes PACA different</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {DIFFERENTIATORS.map(([title, body]) => (
-            <div key={title} className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
-              <h3 className="text-sm font-semibold">{title}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                {body}
-              </p>
+          {DIFFERENTIATORS.map(([title, body, icon]) => (
+            <div
+              key={title}
+              className="flex gap-4 rounded-2xl border p-5 transition hover:-translate-y-0.5 hover:shadow-lg"
+              style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+            >
+              <Image src={icon} alt="" width={72} height={72} className="h-[72px] w-[72px] shrink-0 rounded-full bg-white object-contain" />
+              <div>
+                <h3 className="font-semibold">{title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  {body}
+                </p>
+              </div>
             </div>
           ))}
         </div>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { fetchEvents, fetchTiers, formatUsd, type EventItem, type TierInfo } from "@/lib/api";
 import { EventCard } from "@/components/EventCard";
+import { JourneyCta } from "@/components/JourneyCta";
 import { BADGES, PARTNERS } from "@/lib/brand";
 import { PARTNER_COURSES } from "@/lib/catalog";
 import banner from "@/images/banner-hero.jpg";
@@ -67,12 +68,10 @@ export default async function HomePage() {
               Agile leaders across the continent.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link
-                href="/register"
+              <JourneyCta
+                labels={{ guest: "Join PACA — it’s free to register" }}
                 className="rounded-xl bg-white px-7 py-3.5 text-sm font-bold text-paca-700 shadow-xl shadow-black/30 transition hover:-translate-y-0.5"
-              >
-                Join PACA — it&rsquo;s free to register
-              </Link>
+              />
               <Link
                 href="/assessment"
                 className="rounded-xl border border-white/40 bg-white/10 px-7 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20"
@@ -195,9 +194,9 @@ export default async function HomePage() {
             <span className="text-5xl" aria-hidden>🗓️</span>
             <div className="flex-1">
               <h3 className="text-lg font-bold">New events are coming soon</h3>
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>Join PACA and you&rsquo;ll be the first to know — with your member discount code.</p>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>PACA members are the first to know — with their member discount code.</p>
             </div>
-            <Link href="/register" className="rounded-xl bg-paca-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-paca-600">Join PACA</Link>
+            <JourneyCta labels={{ member: null, staff: null }} className="rounded-xl bg-paca-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-paca-600" />
           </div>
         )}
       </section>
@@ -295,7 +294,7 @@ export default async function HomePage() {
           <h2 className="text-3xl font-extrabold sm:text-4xl">Ready to prove your Agile expertise?</h2>
           <p className="mx-auto mt-3 max-w-xl text-white/85">Start with the free competency test — it takes 30 minutes and shows you exactly where you stand.</p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link href="/register" className="rounded-xl bg-white px-7 py-3.5 text-sm font-bold text-paca-700 shadow-xl">Join PACA</Link>
+            <JourneyCta className="rounded-xl bg-white px-7 py-3.5 text-sm font-bold text-paca-700 shadow-xl" />
             <Link href="/assessment" className="rounded-xl border border-white/40 px-7 py-3.5 text-sm font-semibold text-white">Take the free test</Link>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { fetchTiers, formatUsd, type TierInfo } from "@/lib/api";
 import { PageHero } from "@/components/PageHero";
+import { JourneyCta } from "@/components/JourneyCta";
 
 export const metadata = {
   title: "Getting started with PACA",
@@ -93,13 +94,10 @@ export default async function GettingStartedPage() {
         >
           Choose a membership type
         </Link>
-        <Link
-          href="/register"
+        <JourneyCta
+          labels={{ guest: "Create a free account", registered: null }}
           className="rounded-lg border px-6 py-3 text-sm font-semibold hover:border-paca-500"
-          style={{ borderColor: "var(--border)" }}
-        >
-          Create a free account
-        </Link>
+        />
       </div>
       </div>
     </main>

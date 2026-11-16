@@ -2,6 +2,7 @@ import Link from "next/link";
 import { fetchEvents } from "@/lib/api";
 import { EventCard } from "@/components/EventCard";
 import { PageHero } from "@/components/PageHero";
+import { JourneyCta } from "@/components/JourneyCta";
 
 export const metadata = {
   title: "Events",
@@ -28,9 +29,17 @@ export default async function EventsPage() {
             <p className="mx-auto mt-2 max-w-md text-sm" style={{ color: "var(--text-muted)" }}>
               Members are notified the moment an event is announced, together with their discount code.
             </p>
-            <Link href="/register" className="mt-6 inline-block rounded-xl bg-paca-500 px-6 py-3 text-sm font-semibold text-white hover:bg-paca-600">
-              Join PACA to be notified
-            </Link>
+            <div className="mt-6">
+              <JourneyCta
+                labels={{
+                  guest: "Join PACA to be notified",
+                  registered: "Become a member to get event discounts",
+                  member: null,
+                  staff: null,
+                }}
+                className="inline-block rounded-xl bg-paca-500 px-6 py-3 text-sm font-semibold text-white hover:bg-paca-600"
+              />
+            </div>
           </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

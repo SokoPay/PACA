@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image, { type StaticImageData } from "next/image";
 import { HeaderAuth } from "./HeaderAuth";
+import { JourneyCta } from "./JourneyCta";
 import { MobileNav, type NavItem } from "./MobileNav";
 import { badgeFor, PARTNERS } from "@/lib/brand";
 
@@ -161,9 +162,9 @@ export function SiteFooter() {
             Professional Agile Certification &mdash; Africa. Setting benchmark standards for the Agile profession, and
             helping practitioners across the continent grow.
           </p>
-          <Link href="/register" className="mt-5 inline-block rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-paca-700 transition hover:-translate-y-0.5">
-            Join PACA
-          </Link>
+          <div className="mt-5">
+            <JourneyCta className="inline-block rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-paca-700 transition hover:-translate-y-0.5" />
+          </div>
         </div>
 
         {[

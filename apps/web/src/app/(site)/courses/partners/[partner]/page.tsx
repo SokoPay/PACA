@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { JourneyCta } from "@/components/JourneyCta";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { fetchPartnerOffers } from "@/lib/api";
@@ -64,9 +65,10 @@ export default async function PartnerCoursesPage({ params }: { params: Promise<{
                   : `We are agreeing a discount for PACA members with ${info.name}. You can still view and take every course.`}
               </p>
             </div>
-            <Link href="/membership" className="rounded-lg bg-paca-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-paca-600">
-              Become a member
-            </Link>
+            <JourneyCta
+              labels={{ guest: "Become a member", member: null, staff: null }}
+              className="rounded-lg bg-paca-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-paca-600"
+            />
           </div>
         </div>
       </section>
