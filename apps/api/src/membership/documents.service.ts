@@ -31,7 +31,7 @@ const MAX_BYTES = 8 * 1024 * 1024;
  * Root for locally stored uploads. UPLOAD_DIR points it at a persistent volume in
  * deployment; the default (relative to apps/api's cwd) suits local dev.
  */
-const UPLOAD_ROOT = path.join(path.resolve(process.env.UPLOAD_DIR ?? path.join(process.cwd(), "uploads")), "applications");
+export const UPLOAD_ROOT = path.join(path.resolve(process.env.UPLOAD_DIR ?? path.join(process.cwd(), "uploads")), "applications");
 
 /**
  * Detects the real type from the file's leading bytes. The client-declared

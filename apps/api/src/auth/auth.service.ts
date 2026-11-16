@@ -1,9 +1,10 @@
-import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma.service";
 import { AuditService } from "../common/audit.service";
 import { PasswordService } from "./password.service";
 import { TokensService, type TokenPair } from "./tokens.service";
 import { EmailVerificationService } from "./email-verification.service";
+import { PasswordResetService } from "./password-reset.service";
 
 export interface RegisterInput {
   email: string;
@@ -21,8 +22,9 @@ export interface RequestContext {
 }
 
 /** Lock an account after this many consecutive failures. */
-const MAX_FAILED_LOGINS = 8;
-const LOCKOUT_MS = 15 * 60 * 1000;
+/** 3 wrong passwords → locked for 30 minutes → one more wrong password → must reset the password. */
+const MAX_FAILED_LOGINS = 3;
+const LOCKOUT_MS = 30 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
@@ -32,6 +34,7 @@ export class AuthService {
     private readonly tokens: TokensService,
     private readonly audit: AuditService,
     private readonly verification: EmailVerificationService,
+    private readonly passwordReset: PasswordResetService,
   ) {}
 
   async register(input: RegisterInput, ctx: RequestContext) {
@@ -120,6 +123,7 @@ export class AuthService {
         deletedAt: true,
         failedLoginCount: true,
         lockedUntil: true,
+        passwordResetRequired: true,
       },
     });
 
@@ -133,21 +137,61 @@ export class AuthService {
       throw invalid();
     }
 
+    const resetNeeded = () =>
+      new ForbiddenException(
+        "For your security this account is locked. We have emailed you a link to reset your password — use “Forgot password?” to get a new one.",
+      );
+
+    if (user.passwordResetRequired) throw resetNeeded();
+
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
-      throw new UnauthorizedException("Account temporarily locked after repeated failed attempts");
+      const mins = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000);
+      throw new UnauthorizedException(
+        `Too many wrong passwords. Your account is locked for ${mins} more minute${mins === 1 ? "" : "s"}, or reset your password with “Forgot password?”.`,
+      );
     }
 
     const ok = await this.passwords.verify(user.passwordHash, password);
 
     if (!ok) {
+      // A lock that has run out is still on record: guessing wrong again now
+      // means the account only reopens through a password reset.
+      if (user.lockedUntil) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { passwordResetRequired: true, lockedUntil: null, failedLoginCount: user.failedLoginCount + 1 },
+        });
+        await this.audit.record({
+          actorUserId: user.id,
+          action: "user.password_reset_required",
+          entityType: "User",
+          entityId: user.id,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+        });
+        await this.passwordReset.request(user.email, ctx, { force: true });
+        throw resetNeeded();
+      }
+
       const failures = user.failedLoginCount + 1;
+      const lock = failures >= MAX_FAILED_LOGINS;
       await this.prisma.user.update({
         where: { id: user.id },
-        data: {
-          failedLoginCount: failures,
-          lockedUntil: failures >= MAX_FAILED_LOGINS ? new Date(Date.now() + LOCKOUT_MS) : null,
-        },
+        data: { failedLoginCount: failures, lockedUntil: lock ? new Date(Date.now() + LOCKOUT_MS) : null },
       });
+      if (lock) {
+        await this.audit.record({
+          actorUserId: user.id,
+          action: "user.locked",
+          entityType: "User",
+          entityId: user.id,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+        });
+        throw new UnauthorizedException(
+          "Too many wrong passwords. Your account is locked for 30 minutes. If you have forgotten your password, use “Forgot password?”.",
+        );
+      }
       throw invalid();
     }
 

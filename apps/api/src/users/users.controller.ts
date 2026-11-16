@@ -102,7 +102,7 @@ export class UsersController {
     return this.users.setStatus(id, body.status, user, context(req));
   }
 
-  // Soft delete only (see UsersService.softDelete) — same trust boundary as a
+  // Permanent delete (see UsersService.deletePermanently) — same trust boundary as a
   // role change, since it's just as consequential.
   @Roles("SUPERADMIN")
   @Delete(":id")
@@ -111,7 +111,7 @@ export class UsersController {
     @CurrentUser() user: AuthenticatedUser,
     @Req() req: { ip?: string; headers: Record<string, string | undefined> },
   ) {
-    return this.users.softDelete(id, user.id, context(req));
+    return this.users.deletePermanently(id, user.id, context(req));
   }
 }
 

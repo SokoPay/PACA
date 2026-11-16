@@ -700,7 +700,7 @@ export function setUserStatus(id: string, status: "ACTIVE" | "SUSPENDED"): Promi
   return api(`/admin/users/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
 }
 
-export function deleteUser(id: string): Promise<AdminUserListItem> {
+export function deleteUser(id: string): Promise<{ deleted: true }> {
   return api(`/admin/users/${id}`, { method: "DELETE" });
 }
 

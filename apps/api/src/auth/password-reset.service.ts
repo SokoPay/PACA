@@ -48,7 +48,7 @@ export class PasswordResetService {
     private readonly tokens: TokensService,
   ) {}
 
-  async request(emailInput: string, ctx: RequestContext): Promise<{ ok: true }> {
+  async request(emailInput: string, ctx: RequestContext, opts: { force?: boolean } = {}): Promise<{ ok: true }> {
     const email = emailInput.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -62,7 +62,7 @@ export class PasswordResetService {
       select: { createdAt: true },
     });
     // Quietly ignore rapid repeats: same answer to the caller, no email flood.
-    if (latest && Date.now() - latest.createdAt.getTime() < REQUEST_COOLDOWN_MS) return { ok: true };
+    if (!opts.force && latest && Date.now() - latest.createdAt.getTime() < REQUEST_COOLDOWN_MS) return { ok: true };
 
     const token = randomBytes(32).toString("base64url");
     await this.prisma.$transaction([
@@ -139,6 +139,7 @@ export class PasswordResetService {
         passwordHash,
         failedLoginCount: 0,
         lockedUntil: null,
+        passwordResetRequired: false,
         // Opening a link sent to this address proves the member owns it.
         emailVerifiedAt: row.user.emailVerifiedAt ?? new Date(),
       },

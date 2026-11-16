@@ -1,4 +1,7 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
+import { promises as fs } from "fs";
+import * as path from "path";
+import { UPLOAD_ROOT } from "../membership/documents.service";
 import type { UserRole, UserStatus } from "@prisma/client";
 import { PrismaService } from "../common/prisma.service";
 import { AuditService } from "../common/audit.service";
@@ -59,7 +62,9 @@ const LIST_SELECT = {
 } as const;
 
 @Injectable()
-export class UsersService {
+export class UsersService implements OnModuleInit {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -221,34 +226,53 @@ export class UsersService {
   }
 
   /**
-   * Soft delete only — flips status and stamps deletedAt, never a SQL DELETE.
-   * Every other table (payments, attempts, audit_logs, ...) holds a foreign key
-   * to this row; hard-deleting it would either cascade-destroy that history or
-   * fail outright. auth.service.ts's login() and JwtAuthGuard already treat
-   * deletedAt/DELETED as "cannot authenticate", so this alone fully revokes access.
+   * Permanent delete. The user row and everything that belongs to it — profile,
+   * membership, applications, payments, exam attempts, certificates,
+   * notifications, sessions — is removed by the database (ON DELETE CASCADE),
+   * and their uploaded documents are deleted from disk. Rows they merely
+   * touched (questions they reviewed, other people's applications they
+   * decided) keep their content with the link to the person cleared.
+   * The activity log keeps only "an account was deleted", never their details.
    */
-  async softDelete(id: string, actorId: string, ctx: RequestContext) {
-    if (id === actorId) throw new ForbiddenException("You cannot delete your own account");
+  async deletePermanently(id: string, actorId: string | null, ctx: RequestContext) {
+    if (actorId && id === actorId) throw new ForbiddenException("You cannot delete your own account");
 
-    const before = await this.prisma.user.findUnique({ where: { id }, select: { deletedAt: true } });
-    if (!before) throw new NotFoundException("User not found");
-    if (before.deletedAt) throw new ForbiddenException("Account is already deleted");
-
-    const user = await this.prisma.user.update({
+    const before = await this.prisma.user.findUnique({
       where: { id },
-      data: { status: "DELETED", deletedAt: new Date() },
-      select: LIST_SELECT,
+      select: { role: true, applications: { select: { id: true } } },
     });
+    if (!before) throw new NotFoundException("User not found");
+
+    await this.prisma.user.delete({ where: { id } });
+
+    for (const a of before.applications) {
+      // Application IDs are cuids, so this always stays inside UPLOAD_ROOT.
+      await fs.rm(path.join(UPLOAD_ROOT, path.basename(a.id)), { recursive: true, force: true }).catch(() => {});
+    }
 
     await this.audit.record({
       actorUserId: actorId,
       action: "user.deleted",
       entityType: "User",
       entityId: id,
+      metadata: { role: before.role, permanent: true },
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
     });
+    return { deleted: true };
+  }
 
-    return user;
+  /** Accounts deleted before deletion became permanent are wiped on start-up. */
+  async onModuleInit() {
+    try {
+      const old = await this.prisma.user.findMany({
+        where: { OR: [{ deletedAt: { not: null } }, { status: "DELETED" }] },
+        select: { id: true },
+      });
+      for (const u of old) await this.deletePermanently(u.id, null, {});
+      if (old.length) this.logger.log(`Permanently removed ${old.length} previously deleted account(s)`);
+    } catch (err) {
+      this.logger.error(`Could not purge previously deleted accounts: ${(err as Error).message}`);
+    }
   }
 }

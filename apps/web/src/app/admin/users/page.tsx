@@ -17,7 +17,7 @@ import {
 import { UserProfileModal } from "./UserProfileModal";
 
 const ROLES: AdminRole[] = ["MEMBER", "REVIEWER", "ADMIN", "SUPERADMIN"];
-const STATUSES: AdminUserStatus[] = ["PENDING_VERIFICATION", "ACTIVE", "SUSPENDED", "DELETED"];
+const STATUSES: AdminUserStatus[] = ["PENDING_VERIFICATION", "ACTIVE", "SUSPENDED"];
 const PAGE_SIZE = 20;
 
 export default function AdminUsersPage() {
@@ -119,9 +119,10 @@ export default function AdminUsersPage() {
     setBusyId(deleting.id);
     setError(null);
     try {
-      const updated = await deleteUser(deleting.id);
-      setItems((prev) => prev.map((u) => (u.id === deleting.id ? updated : u)));
-      flash(`${deleting.email} deleted`);
+      await deleteUser(deleting.id);
+      setItems((prev) => prev.filter((u) => u.id !== deleting.id));
+      setTotal((t) => Math.max(0, t - 1));
+      flash(`${deleting.email} permanently deleted`);
       setDeleting(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not delete user.");
@@ -340,11 +341,11 @@ export default function AdminUsersPage() {
       {deleting && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-md rounded-xl border p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <h2 className="text-sm font-semibold">Delete this account?</h2>
+            <h2 className="text-sm font-semibold">Permanently delete this account?</h2>
             <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              {deleting.email} will be locked out immediately — this is a soft delete
-              (their records are kept, not erased) but there is no undo button in this
-              screen. You would need to restore it directly in the database.
+              {deleting.firstName} {deleting.lastName} ({deleting.email}) and everything that belongs to
+              them — profile, applications and uploaded documents, membership, payments, exam attempts,
+              certificates and notifications — will be permanently erased. This cannot be undone.
             </p>
             <div className="mt-4 flex items-center justify-end gap-2 text-sm">
               <button onClick={() => setDeleting(null)} className="rounded-lg px-3 py-1.5" style={{ color: "var(--text-muted)" }}>
@@ -356,7 +357,7 @@ export default function AdminUsersPage() {
                 className="rounded-lg px-3 py-1.5 font-semibold text-white disabled:opacity-50"
                 style={{ background: "#c0392b" }}
               >
-                Delete
+                Delete permanently
               </button>
             </div>
           </div>
