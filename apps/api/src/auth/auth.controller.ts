@@ -3,6 +3,7 @@ import { RouteConfig } from "@nestjs/platform-fastify";
 import { z } from "zod";
 import { AuthService } from "./auth.service";
 import { EmailVerificationService } from "./email-verification.service";
+import { PasswordResetService } from "./password-reset.service";
 import { Public } from "../common/decorators/public.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -43,6 +44,12 @@ const loginSchema = z.object({
 
 const refreshSchema = z.object({ refreshToken: z.string().min(1) });
 
+const forgotSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email address").max(320),
+});
+const resetTokenSchema = z.object({ token: z.string().min(20).max(200) });
+const resetSchema = z.object({ token: z.string().min(20).max(200), password: passwordSchema });
+
 const verifyEmailSchema = z.object({ code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code") });
 
 /**
@@ -61,7 +68,39 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly verification: EmailVerificationService,
+    private readonly passwordReset: PasswordResetService,
   ) {}
+
+  /** Always answers the same way, so it cannot reveal which emails have accounts. */
+  @Public()
+  @RouteConfig(RESEND_LIMIT)
+  @Post("password-reset/request")
+  @HttpCode(200)
+  requestPasswordReset(
+    @Body(new ZodValidationPipe(forgotSchema)) body: z.infer<typeof forgotSchema>,
+    @Req() req: { ip?: string; headers: Record<string, string | undefined> },
+  ) {
+    return this.passwordReset.request(body.email, context(req));
+  }
+
+  @Public()
+  @RouteConfig(VERIFY_LIMIT)
+  @Post("password-reset/check")
+  @HttpCode(200)
+  checkPasswordReset(@Body(new ZodValidationPipe(resetTokenSchema)) body: z.infer<typeof resetTokenSchema>) {
+    return this.passwordReset.check(body.token);
+  }
+
+  @Public()
+  @RouteConfig(VERIFY_LIMIT)
+  @Post("password-reset")
+  @HttpCode(200)
+  resetPassword(
+    @Body(new ZodValidationPipe(resetSchema)) body: z.infer<typeof resetSchema>,
+    @Req() req: { ip?: string; headers: Record<string, string | undefined> },
+  ) {
+    return this.passwordReset.reset(body.token, body.password, context(req));
+  }
 
   @Public()
   @RouteConfig(STRICT_LIMIT)

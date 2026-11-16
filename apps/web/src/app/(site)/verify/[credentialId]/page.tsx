@@ -67,6 +67,16 @@ export default async function VerifyPage({ params }: { params: Promise<{ credent
               View certificate PDF
             </a>
           )}
+          {cert.status === "VALID" && cert.tier && (
+            <a
+              href={`/verify/${encodeURIComponent(cert.credentialId)}/badge`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-5 mt-6 inline-block text-sm font-semibold underline"
+            >
+              View exam-passed badge
+            </a>
+          )}
         </div>
       )}
     </main>

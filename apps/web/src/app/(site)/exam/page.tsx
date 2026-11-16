@@ -180,9 +180,18 @@ export default function ExamPage() {
                 <div className="mt-6 rounded-xl p-5" style={{ background: "#d4f5e2", color: "#0f5132" }}>
                   <p className="font-semibold">You are certified ✓</p>
                   <p className="mt-1 text-sm">Credential ID {status.certificate.credentialId}</p>
-                  <button onClick={() => void viewCertificatePdf(status.certificate!.id)} className="mt-3 text-sm font-semibold underline">
-                    View certificate
-                  </button>
+                  <div className="mt-3 flex flex-wrap gap-4 text-sm font-semibold">
+                    <button onClick={() => void viewCertificatePdf(status.certificate!.id)} className="underline">
+                      View certificate
+                    </button>
+                    <a
+                      href={`/verify/${encodeURIComponent(status.certificate.credentialId)}/badge?download=1`}
+                      download={`${status.certificate.credentialId}-PACA-certified-badge.png`}
+                      className="underline"
+                    >
+                      Download my exam-passed badge
+                    </a>
+                  </div>
                 </div>
               ) : status.eligible ? (
                 <>

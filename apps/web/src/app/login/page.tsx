@@ -70,9 +70,14 @@ function LoginForm() {
         </div>
 
         <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-medium">
-            Password
-          </label>
+          <div className="mb-1 flex items-center justify-between">
+            <label htmlFor="password" className="block text-sm font-medium">
+              Password
+            </label>
+            <Link href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`} className="text-xs font-medium text-paca-500 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <PasswordInput
             id="password"
             required

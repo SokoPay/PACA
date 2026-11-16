@@ -7,6 +7,7 @@ const BADGE_FILES: Record<string, string> = {
   PROFESSIONAL: "pacaprofbadge.jpeg",
   EXECUTIVE: "pacaexecbadge.jpeg",
   FELLOW: "pacafellowbadge.jpeg",
+  RETIRED: "pacaretiredbadge.jpeg",
 };
 
 export async function badgeDataUri(tier: string): Promise<string | null> {

@@ -94,6 +94,16 @@ export default function CertificatesPage() {
                 <Link href={`/verify/${c.credentialId}`} className="text-paca-500 hover:underline">
                   Public link
                 </Link>
+                {c.tier && c.status === "VALID" && (
+                  <a
+                    href={`/verify/${encodeURIComponent(c.credentialId)}/badge?download=1`}
+                    download={`${c.credentialId}-PACA-certified-badge.png`}
+                    className="rounded-lg border px-4 py-2 font-semibold hover:border-paca-500"
+                    style={{ borderColor: "var(--border)" }}
+                  >
+                    Download exam badge
+                  </a>
+                )}
                 <button
                   onClick={() => void handleView(c.id)}
                   className="rounded-lg bg-paca-500 px-4 py-2 font-semibold text-white hover:bg-paca-600"

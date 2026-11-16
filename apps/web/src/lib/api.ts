@@ -184,6 +184,36 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Emails a reset link if the address has an account. Same answer either way. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const res = await fetch(`${API_URL}/auth/password-reset/request`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw await parseError(res);
+}
+
+export async function checkPasswordReset(token: string): Promise<{ valid: boolean; email?: string }> {
+  const res = await fetch(`${API_URL}/auth/password-reset/check`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) return { valid: false };
+  return res.json();
+}
+
+export async function resetPassword(token: string, password: string): Promise<{ email: string }> {
+  const res = await fetch(`${API_URL}/auth/password-reset`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token, password }),
+  });
+  if (!res.ok) throw await parseError(res);
+  return res.json();
+}
+
 export async function login(email: string, password: string): Promise<SessionUser> {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",

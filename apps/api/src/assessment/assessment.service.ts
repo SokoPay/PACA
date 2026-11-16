@@ -177,7 +177,7 @@ export class AssessmentService {
           await this.notifications.notify(attempt.userId, {
             kind: "CERTIFICATE",
             title: "Congratulations — you are PACA certified!",
-            body: `You passed the certification exam with ${Math.round(scoreBps / 100)}%. Your certificate (${cert.credentialId}) is ready to download and share.`,
+            body: `You passed the certification exam with ${Math.round(scoreBps / 100)}%. Your certificate (${cert.credentialId}) and your personal exam-passed badge are ready to download and share.`,
             link: "/certificates",
           });
         } catch {

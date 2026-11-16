@@ -88,7 +88,7 @@ export default async function HomePage() {
                     key={b.tier}
                     href={`/membership/${b.slug}`}
                     className="bob block rounded-xl bg-white p-1 shadow-lg ring-2 ring-white/60 transition hover:z-10 hover:scale-110"
-                    style={{ ["--tilt" as string]: `${[-5, 3, -2, 4][i]}deg`, animationDelay: `${i * -1.4}s` }}
+                    style={{ ["--tilt" as string]: `${[-5, 3, -2, 4, -3][i]}deg`, animationDelay: `${i * -1.4}s` }}
                     title={b.name}
                   >
                     <Image src={b.image} alt={`${b.name} badge`} width={64} height={54} className="h-[54px] w-16 rounded-lg object-contain" />
@@ -96,8 +96,8 @@ export default async function HomePage() {
                 ))}
               </div>
               <div className="text-sm leading-tight">
-                <p className="font-semibold">4 certification badges</p>
-                <p className="text-white/75">Student · Professional · Executive · Fellow</p>
+                <p className="font-semibold">{BADGES.length} membership badges</p>
+                <p className="text-white/75">Student · Professional · Executive · Fellow · Retired</p>
               </div>
             </div>
           </div>
@@ -130,7 +130,7 @@ export default async function HomePage() {
             Earn your PACA badge, show it on LinkedIn and your CV, and let employers verify it online in seconds.
           </p>
         </div>
-        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
           {BADGES.map((b) => (
             <Link
               key={b.tier}
