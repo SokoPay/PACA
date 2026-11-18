@@ -28,6 +28,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ memberNu
     const status = err instanceof ApiError && err.status === 404 ? 404 : 502;
     return new Response(status === 404 ? "Member not found" : "Badge temporarily unavailable", { status });
   }
+  // Badges are a paid-member benefit: approved-but-unpaid, lapsed or expired
+  // memberships do not get one.
+  if (!m.inGoodStanding) {
+    return new Response("This membership is not active. The member badge is issued once the membership payment is confirmed.", {
+      status: 403,
+      headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+    });
+  }
   const badge = await badgeDataUri(m.tier);
   const verifyUrl = siteUrl(`/members/${m.memberNumber}`).replace(/^https?:\/\//, "");
   const nameSize = m.name.length > 30 ? 50 : m.name.length > 24 ? 56 : m.name.length > 18 ? 64 : 74;

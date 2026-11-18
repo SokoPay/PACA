@@ -1,0 +1,23 @@
+-- Exam questions are written for one membership type each: Student (core
+-- knowledge), Professional (team scenarios) or Executive (leadership and
+-- organisation). Move the starter questions that sat in the wrong exam.
+UPDATE "questions" SET "difficulty" = 'FOUNDATION' WHERE "stem" = 'According to the principles behind the Agile Manifesto, what is the primary measure of progress?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'INTERMEDIATE' WHERE "stem" = 'A Scrum Team holds all events on schedule, but the Product Backlog is maintained privately by the Product Owner and stakeholders cannot see it. Which pillar is most directly undermined, and what is the consequence?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'ADVANCED' WHERE "stem" = 'A department decides that Product Owner decisions will be made by a committee of four managers voting on backlog order. What is the most significant problem with this arrangement?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'FOUNDATION' WHERE "stem" = 'Who is accountable for creating a valuable, useful Increment every Sprint?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'FOUNDATION' WHERE "stem" = 'Match the timeboxes for a one-month Sprint: which option correctly gives Sprint Review and Sprint Retrospective respectively?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'FOUNDATION' WHERE "stem" = 'Who has the authority to cancel a Sprint?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'INTERMEDIATE' WHERE "stem" = 'A Scrum Master notices the Daily Scrum has become a sequence of status reports delivered to them personally, and finishes in six minutes with no plan produced. Which intervention best addresses the underlying problem?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'FOUNDATION' WHERE "stem" = 'Which statement about the Definition of Done is correct?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'FOUNDATION' WHERE "stem" = 'The Sprint Backlog is composed of three things. Which option lists them?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'INTERMEDIATE' WHERE "stem" = 'At the Sprint Review, the Developers demonstrate work that functions but has not met one criterion of the Definition of Done. The Product Owner wants to release it to a customer who is waiting. What is the correct position?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'FOUNDATION' WHERE "stem" = 'Which three practices does the Kanban Guide require?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'INTERMEDIATE' WHERE "stem" = 'A team''s Definition of Workflow visualises states and sets WIP limits, but has never agreed what ''started'' and ''finished'' mean. Which flow metrics become unreliable as a direct result?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'FOUNDATION' WHERE "stem" = 'What does Work Item Age measure?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'INTERMEDIATE' WHERE "stem" = 'Two teams both report a median Cycle Time of 5 days. Team A''s 85th percentile is 7 days; Team B''s is 26 days. Which conclusion is best supported?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'INTERMEDIATE' WHERE "stem" = 'A team maintains an average WIP of 20 items and an average Throughput of 4 items per week. Using Little''s Law, what is the approximate average Cycle Time?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'ADVANCED' WHERE "stem" = 'An organisation reports strong Current Value and short Time-to-Market, but its Ability to Innovate measures are declining sharply. What does this pattern most likely indicate?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'FOUNDATION' WHERE "stem" = 'In Lean thinking, which of the following best describes ''waste''?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'INTERMEDIATE' WHERE "stem" = 'A team practises continuous integration but merges long-lived feature branches only once per Sprint. Why does this fail to deliver the main benefit of CI?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'INTERMEDIATE' WHERE "stem" = 'Which of the following best distinguishes coaching from mentoring?' AND "origin" <> 'AI_GENERATED';
+UPDATE "questions" SET "difficulty" = 'ADVANCED' WHERE "stem" = 'An executive mandates that every team adopt an identical Agile process, measured by a compliance scorecard. Which critique is most substantive?' AND "origin" <> 'AI_GENERATED';

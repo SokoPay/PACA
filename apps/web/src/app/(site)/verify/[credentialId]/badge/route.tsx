@@ -26,6 +26,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ credenti
     const notFound = err instanceof ApiError && err.status === 404;
     return new Response(notFound ? "Certificate not found" : "Badge temporarily unavailable", { status: notFound ? 404 : 502 });
   }
+  if (c.status !== "VALID" || c.memberInGoodStanding === false) {
+    return new Response(
+      c.status !== "VALID"
+        ? "This certificate is not valid, so no badge is issued."
+        : "The holder's membership is not active. The exam badge is issued only while the membership is paid and in period.",
+      { status: 403, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } },
+    );
+  }
   const badge = c.tier ? await badgeDataUri(c.tier) : null;
   const verifyUrl = siteUrl(`/verify/${c.credentialId}`).replace(/^https?:\/\//, "");
   const valid = c.status === "VALID";

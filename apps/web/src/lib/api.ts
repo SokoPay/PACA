@@ -287,6 +287,24 @@ async function doRestore(): Promise<SessionUser | null> {
 export type Verdict = "APPROVE" | "FLAG" | "REJECT";
 export type Difficulty = "FOUNDATION" | "INTERMEDIATE" | "ADVANCED" | "EXPERT";
 
+/**
+ * Every question belongs to exactly one membership type's exam. The stored
+ * level maps 1:1 to the membership type, and staff only ever see the type.
+ */
+export const DIFFICULTY_LABEL: Record<Difficulty, string> = {
+  FOUNDATION: "Student exam",
+  INTERMEDIATE: "Professional exam",
+  ADVANCED: "Executive exam",
+  EXPERT: "Fellow (panel, no exam)",
+};
+
+/** Who each exam is written for, in plain words. */
+export const EXAM_AUDIENCE: Record<string, string> = {
+  STUDENT: "Students new to Agile: core knowledge, definitions and the purpose of Scrum and Kanban.",
+  PROFESSIONAL: "Working practitioners: realistic team scenarios, facilitation, backlog, flow and coaching.",
+  EXECUTIVE: "Leaders and executives: transformation, organisational design, value metrics and scaling.",
+};
+
 export interface QuestionOption {
   id: string;
   text: string;
@@ -718,6 +736,16 @@ export interface AdminUserDetail extends AdminUserListItem {
   applications: ApplicationRecord[];
 }
 
+export type OfflinePaymentMethod = "CASH" | "BANK_TRANSFER" | "MOBILE_MONEY";
+
+/** SUPERADMIN: confirm a cash / direct payment, which activates an approved membership. */
+export function confirmOfflinePayment(
+  userId: string,
+  body: { method: OfflinePaymentMethod; receivedOn?: string; note?: string },
+): Promise<{ status: string; memberNumber: string; currentPeriodStart: string | null; currentPeriodEnd: string | null; paymentReference: string }> {
+  return api(`/admin/payments/offline/${userId}`, { method: "POST", body: JSON.stringify(body) });
+}
+
 export function fetchAdminUser(id: string): Promise<AdminUserDetail> {
   return api(`/admin/users/${id}`);
 }
@@ -747,7 +775,7 @@ export interface AdminApplicationListItem {
   submittedAt: string | null;
   reviewedAt: string | null;
   createdAt: string;
-  user: { id: string; email: string; firstName: string; lastName: string };
+  user: { id: string; email: string; firstName: string; lastName: string; membership?: { status: string } | null };
   documentCount?: number;
 }
 
@@ -1048,6 +1076,8 @@ export interface VerifyResult {
   issuedAt: string;
   status: "VALID" | "SUSPENDED" | "REVOKED";
   revokedReason: string | null;
+  /** False when the holder's membership is unpaid or expired — no exam badge is issued then. */
+  memberInGoodStanding?: boolean;
 }
 
 export function fetchMyCertificates(): Promise<CertificateItem[]> {

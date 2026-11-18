@@ -19,6 +19,7 @@ import {
 import { Modal } from "@/components/Modal";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { ApplicationAnswers, StatusPill, documentLabels } from "@/components/ApplicationAnswers";
+import { MembershipPaymentPanel } from "../MembershipPaymentPanel";
 
 const STATUS_TABS: Array<{ value: AdminApplicationStatus | ""; label: string }> = [
   { value: "SUBMITTED", label: "Awaiting review" },
@@ -215,6 +216,18 @@ export default function AdminApplicationsPage() {
                 <td className="px-4 py-3">{a.tier.charAt(0) + a.tier.slice(1).toLowerCase()}</td>
                 <td className="px-4 py-3">
                   <StatusPill status={a.status} />
+                  {a.status === "APPROVED" && a.user.membership && (
+                    <span
+                      className="ml-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                      style={
+                        a.user.membership.status === "ACTIVE"
+                          ? { background: "#d4f5e2", color: "#146c3b" }
+                          : { background: "#fdf2d0", color: "#8a6100" }
+                      }
+                    >
+                      {a.user.membership.status === "ACTIVE" ? "Paid · active" : "Awaiting payment"}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3">{a.documentCount ?? "—"} file{a.documentCount === 1 ? "" : "s"}</td>
                 <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
@@ -261,6 +274,7 @@ export default function AdminApplicationsPage() {
 
       {openId && (
         <ApplicationReviewModal
+          canConfirmPayment={me?.role === "SUPERADMIN"}
           id={openId}
           onClose={() => setOpenId(null)}
           onDecided={(message) => {
@@ -323,7 +337,17 @@ function Card({ title, children, right }: { title: string; children: React.React
   );
 }
 
-function ApplicationReviewModal({ id, onClose, onDecided }: { id: string; onClose: () => void; onDecided: (message: string) => void }) {
+function ApplicationReviewModal({
+  id,
+  canConfirmPayment,
+  onClose,
+  onDecided,
+}: {
+  id: string;
+  canConfirmPayment: boolean;
+  onClose: () => void;
+  onDecided: (message: string) => void;
+}) {
   const [detail, setDetail] = useState<AdminApplicationDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -343,7 +367,9 @@ function ApplicationReviewModal({ id, onClose, onDecided }: { id: string; onClos
     setError(null);
     try {
       await approveApplication(detail.id, notes.trim() || undefined);
-      onDecided(`Approved ${detail.user.firstName} ${detail.user.lastName}. They have been emailed and can now pay.`);
+      onDecided(
+        `Approved ${detail.user.firstName} ${detail.user.lastName}. Not active until payment is confirmed: they have been emailed to pay online, or confirm a cash payment from the Approved tab.`,
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not approve.");
       setBusy(false);
@@ -446,6 +472,15 @@ function ApplicationReviewModal({ id, onClose, onDecided }: { id: string; onClos
             <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "#fdf2d0", color: "#8a6100" }}>
               <strong>{detail.status === "DECLINED" ? "Changes requested:" : "Previously sent back because:"}</strong> {detail.decisionReason}
             </div>
+          )}
+
+          {detail.status === "APPROVED" && (
+            <MembershipPaymentPanel
+              userId={detail.user.id}
+              membership={detail.user.membership}
+              canConfirm={canConfirmPayment}
+              onConfirmed={(msg) => onDecided(`${detail.user.firstName} ${detail.user.lastName}: ${msg}`)}
+            />
           )}
 
           <div className="grid gap-5 lg:grid-cols-2">

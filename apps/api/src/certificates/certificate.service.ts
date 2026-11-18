@@ -71,7 +71,21 @@ export class CertificateService {
     const cert = await this.prisma.certificate.findUnique({ where: { credentialId } });
     if (!cert) throw new NotFoundException("No certificate found with that credential ID");
 
+    // A tier certificate's badge is only issued while the holder's membership is
+    // paid and in period (an approved-but-unpaid membership never qualifies).
+    let memberInGoodStanding = true;
+    if (cert.tier) {
+      const m = await this.prisma.membership.findUnique({
+        where: { userId: cert.userId },
+        select: { status: true, currentPeriodEnd: true },
+      });
+      memberInGoodStanding = Boolean(
+        m && m.status === "ACTIVE" && (!m.currentPeriodEnd || m.currentPeriodEnd.getTime() > Date.now()),
+      );
+    }
+
     return {
+      memberInGoodStanding,
       credentialId: cert.credentialId,
       holderName: cert.holderName,
       tier: cert.tier,

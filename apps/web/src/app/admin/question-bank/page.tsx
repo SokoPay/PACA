@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ApiError, api } from "@/lib/api";
+import { ApiError, EXAM_AUDIENCE, api } from "@/lib/api";
 
 interface BankTier {
   tier: "STUDENT" | "PROFESSIONAL" | "EXECUTIVE" | "RETIRED";
@@ -83,12 +83,17 @@ export default function QuestionBankPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">{t.name}</h2>
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{t.difficulty} pool · {t.perExam} questions per exam</p>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>Own question pool · {t.perExam} questions per exam</p>
                 </div>
                 <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={ready ? { background: "#d4f5e2", color: "#146c3b" } : { background: "#fde2e2", color: "#b42318" }}>
                   {ready ? "Exam ready" : "Not enough questions"}
                 </span>
               </div>
+              {EXAM_AUDIENCE[t.tier] && (
+                <p className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: "var(--bg)", color: "var(--text-muted)" }}>
+                  <strong style={{ color: "var(--text)" }}>Written for:</strong> {EXAM_AUDIENCE[t.tier]}
+                </p>
+              )}
               <div className="mt-4 h-2 overflow-hidden rounded-full" style={{ background: "var(--border)" }}>
                 <div className="h-full rounded-full bg-paca-500" style={{ width: `${pct}%` }} />
               </div>

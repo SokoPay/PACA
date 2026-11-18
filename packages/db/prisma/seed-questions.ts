@@ -76,7 +76,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "agile-manifesto",
-    difficulty: I,
+    difficulty: F,
     stem: "According to the principles behind the Agile Manifesto, what is the primary measure of progress?",
     explanation:
       "The principles state that working software is the primary measure of progress — not hours worked, tasks closed, or documents completed.",
@@ -105,7 +105,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "empiricism",
-    difficulty: A,
+    difficulty: I,
     stem: "A Scrum Team holds all events on schedule, but the Product Backlog is maintained privately by the Product Owner and stakeholders cannot see it. Which pillar is most directly undermined, and what is the consequence?",
     explanation:
       "Transparency is the precondition for the other two pillars. Inspection of a low-transparency artifact produces decisions based on a distorted picture, so adaptation is misdirected. Holding the events on time does not compensate.",
@@ -166,7 +166,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "scrum-accountabilities",
-    difficulty: I,
+    difficulty: A,
     stem: "A department decides that Product Owner decisions will be made by a committee of four managers voting on backlog order. What is the most significant problem with this arrangement?",
     explanation:
       "The Product Owner is one person, not a committee. A committee may represent the needs of many stakeholders in the Product Backlog, but accountability must rest with a single person so that decisions are unambiguous and the backlog remains a single source of truth.",
@@ -183,7 +183,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "scrum-accountabilities",
-    difficulty: I,
+    difficulty: F,
     stem: "Who is accountable for creating a valuable, useful Increment every Sprint?",
     explanation:
       "The Developers are accountable for creating a plan for the Sprint, instilling quality by adhering to the Definition of Done, and creating a valuable, useful Increment each Sprint.",
@@ -255,7 +255,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "scrum-events",
-    difficulty: I,
+    difficulty: F,
     stem: "Match the timeboxes for a one-month Sprint: which option correctly gives Sprint Review and Sprint Retrospective respectively?",
     explanation:
       "For a one-month Sprint, the Sprint Review is timeboxed to a maximum of four hours and the Sprint Retrospective to a maximum of three hours.",
@@ -269,7 +269,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "scrum-events",
-    difficulty: I,
+    difficulty: F,
     stem: "Who has the authority to cancel a Sprint?",
     explanation:
       "Only the Product Owner has the authority to cancel a Sprint. A Sprint would be cancelled if the Sprint Goal becomes obsolete.",
@@ -300,7 +300,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "scrum-events",
-    difficulty: A,
+    difficulty: I,
     stem: "A Scrum Master notices the Daily Scrum has become a sequence of status reports delivered to them personally, and finishes in six minutes with no plan produced. Which intervention best addresses the underlying problem?",
     explanation:
       "The Daily Scrum exists for the Developers to inspect progress toward the Sprint Goal and adapt the Sprint Backlog, producing an actionable plan for the next day. Reporting to the Scrum Master indicates ownership has drifted away from the Developers. Coaching them to own the event and focus it on the Sprint Goal addresses the cause; policing attendance or duration addresses only symptoms.",
@@ -333,7 +333,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "scrum-artifacts",
-    difficulty: I,
+    difficulty: F,
     stem: "Which statement about the Definition of Done is correct?",
     explanation:
       "The Definition of Done is a formal description of the state of the Increment when it meets the required quality measures. Work cannot be considered part of an Increment until it meets it. If an organisation has a standard, all Scrum Teams must follow it as a minimum.",
@@ -350,7 +350,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "scrum-artifacts",
-    difficulty: I,
+    difficulty: F,
     stem: "The Sprint Backlog is composed of three things. Which option lists them?",
     explanation:
       "The Sprint Backlog is composed of the Sprint Goal (why), the set of Product Backlog items selected for the Sprint (what), and an actionable plan for delivering the Increment (how).",
@@ -364,7 +364,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "scrum-artifacts",
-    difficulty: A,
+    difficulty: I,
     stem: "At the Sprint Review, the Developers demonstrate work that functions but has not met one criterion of the Definition of Done. The Product Owner wants to release it to a customer who is waiting. What is the correct position?",
     explanation:
       "Work that does not meet the Definition of Done cannot be released or presented at the Sprint Review, and is not part of an Increment. It returns to the Product Backlog for future consideration. Releasing it would break the transparency that the Definition of Done exists to protect.",
@@ -396,7 +396,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "kanban-practices",
-    difficulty: I,
+    difficulty: F,
     stem: "Which three practices does the Kanban Guide require?",
     explanation:
       "The Kanban Guide names three practices: defining and visualising the workflow, actively managing items in the workflow, and improving the workflow.",
@@ -413,7 +413,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "definition-of-workflow",
-    difficulty: A,
+    difficulty: I,
     stem: "A team's Definition of Workflow visualises states and sets WIP limits, but has never agreed what 'started' and 'finished' mean. Which flow metrics become unreliable as a direct result?",
     explanation:
       "Cycle Time is the elapsed time between a work item starting and finishing, Work Item Age is the elapsed time since it started, and both WIP and Throughput are defined relative to the started and finished points. Without agreed start and finish points, none of the four metrics has a defensible definition.",
@@ -456,7 +456,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "cycle-time",
-    difficulty: I,
+    difficulty: F,
     stem: "What does Work Item Age measure?",
     explanation:
       "Work Item Age is the elapsed time between when a work item started and the current moment. It applies only to items still in progress, which is what makes it actionable — unlike Cycle Time, which is only known once an item has finished.",
@@ -470,7 +470,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "cycle-time",
-    difficulty: A,
+    difficulty: I,
     stem: "Two teams both report a median Cycle Time of 5 days. Team A's 85th percentile is 7 days; Team B's is 26 days. Which conclusion is best supported?",
     explanation:
       "The median hides the tail of the distribution. Team B's wide spread means a far less predictable service, so its Service Level Expectation must quote a much longer timeframe to reach the same confidence. Cycle Time distributions are typically right-skewed, which is exactly why percentiles rather than averages are used for forecasting.",
@@ -501,7 +501,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "littles-law",
-    difficulty: A,
+    difficulty: I,
     stem: "A team maintains an average WIP of 20 items and an average Throughput of 4 items per week. Using Little's Law, what is the approximate average Cycle Time?",
     explanation:
       "Little's Law in its flow form gives average Cycle Time = average WIP / average Throughput, so 20 / 4 = 5 weeks. This is why reducing WIP shortens Cycle Time without any change in how fast people work.",
@@ -548,7 +548,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "ebm-key-value-areas",
-    difficulty: E,
+    difficulty: A,
     stem: "An organisation reports strong Current Value and short Time-to-Market, but its Ability to Innovate measures are declining sharply. What does this pattern most likely indicate?",
     explanation:
       "Strong Current Value with declining Ability to Innovate is the classic signature of an organisation harvesting an existing product while accumulating technical debt and low-value features that consume capacity. It delivers well today but is progressively losing the capacity to deliver new value — a lagging risk that Current Value alone will not reveal until it is expensive to reverse.",
@@ -567,7 +567,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   // ---------------------------------------------------------------- Lean / XP / DevOps
   {
     topicSlug: "lean",
-    difficulty: I,
+    difficulty: F,
     stem: "In Lean thinking, which of the following best describes 'waste'?",
     explanation:
       "Waste is any activity that consumes resources without creating value for the customer. Note that some non-value-adding activity is currently necessary (for example, certain regulatory steps) — Lean distinguishes pure waste from necessary non-value-adding work.",
@@ -598,7 +598,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "devops",
-    difficulty: A,
+    difficulty: I,
     stem: "A team practises continuous integration but merges long-lived feature branches only once per Sprint. Why does this fail to deliver the main benefit of CI?",
     explanation:
       "The benefit of CI comes from integrating frequently — ideally at least daily — so that conflicts and integration defects are found while they are small and cheap to fix. Merging once per Sprint reintroduces exactly the large, late, expensive integration problem that CI exists to eliminate, regardless of how good the build automation is.",
@@ -634,7 +634,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "agile-coaching",
-    difficulty: A,
+    difficulty: I,
     stem: "Which of the following best distinguishes coaching from mentoring?",
     explanation:
       "Coaching draws solutions out of the person through questioning, on the premise that they are resourceful and capable. Mentoring shares the mentor's own experience and advice. Both are legitimate; the distinction is where the answer originates.",
@@ -651,7 +651,7 @@ export const STARTER_QUESTIONS: SeedQuestion[] = [
   },
   {
     topicSlug: "agile-leadership",
-    difficulty: E,
+    difficulty: A,
     stem: "An executive mandates that every team adopt an identical Agile process, measured by a compliance scorecard. Which critique is most substantive?",
     explanation:
       "Imposing a uniform process and measuring compliance optimises for conformity rather than outcomes, and removes the local inspection and adaptation on which empiricism depends. Teams then improve their scores rather than their products — a well-documented failure mode of process-compliance metrics.",

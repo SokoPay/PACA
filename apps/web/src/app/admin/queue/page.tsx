@@ -10,6 +10,7 @@ import {
   rejectQuestion,
   restoreSession,
   ApiError,
+  DIFFICULTY_LABEL,
   type Difficulty,
   type QueueItem,
   type ReviewStats,
@@ -315,10 +316,10 @@ export default function ReviewQueuePage() {
           className="rounded border px-2 py-1"
           style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
         >
-          <option value="">All difficulties</option>
+          <option value="">All exams (every membership type)</option>
           {DIFFICULTIES.map((d) => (
             <option key={d} value={d}>
-              {d}
+              {DIFFICULTY_LABEL[d]}
             </option>
           ))}
         </select>
@@ -392,7 +393,7 @@ export default function ReviewQueuePage() {
                   {item.autoReviewConfidence && (
                     <span style={{ color: "var(--text-muted)" }}>{Number(item.autoReviewConfidence).toFixed(2)}</span>
                   )}
-                  <span style={{ color: "var(--text-muted)" }}>· {item.difficulty}</span>
+                  <span style={{ color: "var(--text-muted)" }}>· {DIFFICULTY_LABEL[item.difficulty as Difficulty] ?? item.difficulty}</span>
                   <span className="ml-auto" style={{ color: "var(--text-muted)" }}>
                     {item.topic.slug}
                   </span>
@@ -495,7 +496,7 @@ function QuestionDetail({
         {item.autoReviewConfidence && (
           <span style={{ color: "var(--text-muted)" }}>confidence {Number(item.autoReviewConfidence).toFixed(2)}</span>
         )}
-        <span style={{ color: "var(--text-muted)" }}>· {item.difficulty}</span>
+        <span style={{ color: "var(--text-muted)" }}>· {DIFFICULTY_LABEL[item.difficulty as Difficulty] ?? item.difficulty}</span>
         <span style={{ color: "var(--text-muted)" }}>· {item.topic.name}</span>
         <span style={{ color: "var(--text-muted)" }}>· {item.origin}</span>
       </div>

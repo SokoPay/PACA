@@ -62,10 +62,32 @@ export class PaymentsController {
   }
 }
 
+const offlineSchema = z.object({
+  method: z.enum(["CASH", "BANK_TRANSFER", "MOBILE_MONEY"]),
+  receivedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use the date format YYYY-MM-DD").optional(),
+  note: z.string().trim().max(500).optional(),
+});
+
 @Controller("admin/payments")
 @Roles("ADMIN")
 export class AdminPaymentsController {
   constructor(private readonly payments: PaymentsService) {}
+
+  /**
+   * Confirm a payment made in cash or directly to PACA. SUPERADMIN only: this is
+   * the step that turns an approved (unpaid) membership into an active one.
+   */
+  @Roles("SUPERADMIN")
+  @Post("offline/:userId")
+  @HttpCode(200)
+  confirmOffline(
+    @Param("userId") userId: string,
+    @Body(new ZodValidationPipe(offlineSchema)) body: z.infer<typeof offlineSchema>,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.payments.confirmOfflinePayment(userId, user.id, body, context(req));
+  }
 
   @Get()
   list(@Query(new ZodValidationPipe(adminListSchema)) query: z.infer<typeof adminListSchema>) {

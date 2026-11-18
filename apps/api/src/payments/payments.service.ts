@@ -7,6 +7,8 @@ import { loadEnv } from "../config/env";
 import { PaystackClient, type VerifiedTransaction } from "./paystack.client";
 import { requireVerifiedEmail } from "../common/require-verified-email";
 import { NotificationsService } from "../common/notifications.service";
+import { MailService } from "../common/mail.service";
+import { brandedEmail } from "../common/branded-email";
 
 export interface RequestContext {
   ipAddress?: string | null;
@@ -40,7 +42,104 @@ export class PaymentsService {
     private readonly audit: AuditService,
     private readonly paystack: PaystackClient,
     private readonly notifications: NotificationsService,
+    private readonly mail: MailService,
   ) {}
+
+  /**
+   * A SUPERADMIN confirms a payment made outside Paystack (cash, bank transfer,
+   * mobile money to PACA directly). Approval alone never activates a membership:
+   * it stays PENDING_PAYMENT until either Paystack confirms an online payment or
+   * a SUPERADMIN confirms an offline one here. The offline payment is recorded as
+   * a MANUAL payment and goes through exactly the same activation as an online
+   * one (one-year period, exam attempts, badge, library).
+   */
+  async confirmOfflinePayment(
+    userId: string,
+    actorId: string,
+    input: { method: "CASH" | "BANK_TRANSFER" | "MOBILE_MONEY"; receivedOn?: string; note?: string },
+    ctx: RequestContext,
+  ) {
+    const membership = await this.prisma.membership.findUnique({
+      where: { userId },
+      include: { user: { select: { email: true, firstName: true, deletedAt: true } } },
+    });
+    if (!membership || membership.user.deletedAt) {
+      throw new BadRequestException("This person has no approved membership yet. Approve their application first.");
+    }
+    if (membership.status === "ACTIVE") throw new ConflictException("This membership is already active and paid");
+    if (membership.status !== "PENDING_PAYMENT" && membership.status !== "LAPSED") {
+      throw new BadRequestException(`A ${membership.status.toLowerCase()} membership cannot be activated by payment`);
+    }
+    const tier = await this.prisma.tierConfig.findUnique({ where: { tier: membership.tier } });
+    if (!tier) throw new BadRequestException("This membership tier is not configured");
+
+    const paidAt = input.receivedOn ? new Date(`${input.receivedOn}T12:00:00Z`) : new Date();
+    if (Number.isNaN(paidAt.getTime()) || paidAt.getTime() > Date.now() + 86_400_000) {
+      throw new BadRequestException("The payment date is not valid");
+    }
+    const channel = input.method.toLowerCase();
+    const purpose = membership.status === "LAPSED" ? "MEMBERSHIP_RENEWAL" : "MEMBERSHIP_SUBSCRIPTION";
+    const reference = `PACA-MANUAL-${randomBytes(8).toString("hex").toUpperCase()}`;
+    const payment = await this.prisma.payment.create({
+      data: {
+        userId,
+        provider: "MANUAL",
+        providerRef: reference,
+        purpose,
+        status: "INITIALIZED",
+        amount: tier.priceUsdCents,
+        currency: "USD",
+        amountUsdCents: tier.priceUsdCents,
+        fxRate: new Prisma.Decimal(1),
+        metadata: { membershipId: membership.id, tier: membership.tier, confirmedBy: actorId, method: input.method, note: input.note ?? null },
+      },
+    });
+
+    await this.applyTransaction(
+      payment,
+      { reference, status: "success", amount: tier.priceUsdCents, currency: "USD", channel, paidAt: paidAt.toISOString() },
+      "manual",
+      ctx,
+    );
+
+    await this.audit.record({
+      actorUserId: actorId,
+      action: "payment.confirmed_offline",
+      entityType: "Payment",
+      entityId: payment.id,
+      metadata: { userId, method: input.method, amountUsdCents: tier.priceUsdCents, reference, note: input.note ?? null },
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+    });
+
+    const updated = await this.prisma.membership.findUniqueOrThrow({ where: { userId } });
+    try {
+      const until = updated.currentPeriodEnd
+        ? updated.currentPeriodEnd.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+        : "one year from today";
+      const { html, text } = brandedEmail({
+        firstName: membership.user.firstName,
+        heading: "Payment confirmed: your membership is active",
+        paragraphs: [
+          `PACA has confirmed your ${tier.displayName} membership payment. Your membership is now active until ${until}.`,
+          "You can now download your member badge, sit the certification exam, read the study library and use your member discounts.",
+        ],
+        note: { label: "Member ID", text: updated.memberNumber },
+        cta: { label: "Go to my dashboard", url: `${this.env.WEB_PUBLIC_URL.replace(/\/$/, "")}/dashboard` },
+      });
+      await this.mail.send({ to: { email: membership.user.email, name: membership.user.firstName }, subject: "Your PACA membership is active", html, text });
+    } catch (err) {
+      this.logger.error(`Could not email payment confirmation to ${userId}: ${(err as Error).message}`);
+    }
+
+    return {
+      status: updated.status,
+      memberNumber: updated.memberNumber,
+      currentPeriodStart: updated.currentPeriodStart,
+      currentPeriodEnd: updated.currentPeriodEnd,
+      paymentReference: reference,
+    };
+  }
 
   /**
    * Starts a membership payment. The amount comes from TierConfig on the server —
@@ -224,7 +323,12 @@ export class PaymentsService {
    * the activation, so the verify call and the webhook arriving together activate
    * the membership exactly once.
    */
-  private async applyTransaction(payment: Payment, tx: VerifiedTransaction, source: "verify" | "webhook", ctx: RequestContext) {
+  private async applyTransaction(
+    payment: Payment,
+    tx: VerifiedTransaction,
+    source: "verify" | "webhook" | "manual",
+    ctx: RequestContext,
+  ) {
     if (tx.status !== "success") {
       const status: PaymentStatus =
         tx.status === "failed" ? "FAILED" : tx.status === "abandoned" ? "ABANDONED" : "PENDING";

@@ -11,6 +11,7 @@ import {
 import { Modal } from "@/components/Modal";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { ApplicationAnswers, StatusPill, documentLabels } from "@/components/ApplicationAnswers";
+import { MembershipPaymentPanel } from "../MembershipPaymentPanel";
 
 type ProfileKey = "linkedinUrl" | "bio";
 
@@ -169,6 +170,15 @@ export function UserProfileModal({
 
       {user && !editing && (
         <div className="space-y-5">
+          <MembershipPaymentPanel
+            userId={user.id}
+            membership={user.membership}
+            canConfirm={canEdit}
+            onConfirmed={(msg) => {
+              onSaved(`${user.firstName} ${user.lastName}: ${msg}`);
+              fetchAdminUser(userId).then(setUser).catch(() => undefined);
+            }}
+          />
           <section className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
             <h3 className="mb-3 text-sm font-bold">Account and membership</h3>
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3">

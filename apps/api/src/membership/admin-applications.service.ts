@@ -69,7 +69,7 @@ export class AdminApplicationsService {
           submittedAt: true,
           reviewedAt: true,
           createdAt: true,
-          user: { select: { id: true, email: true, firstName: true, lastName: true } },
+          user: { select: { id: true, email: true, firstName: true, lastName: true, membership: { select: { status: true } } } },
           _count: { select: { documents: true } },
         },
       }),
@@ -194,7 +194,8 @@ export class AdminApplicationsService {
       heading: `Congratulations, your ${tierName} application is approved!`,
       paragraphs: [
         "Welcome to PACA — Professional Agile Certification Africa. The review panel has approved your membership application.",
-        "Your next step is to pay your annual membership fee. As soon as it is paid, your membership becomes active for one full year and you unlock your member badge, the certification exam, the study library, the Agile job board and member discounts.",
+        "Your membership is approved but not active yet. Your next step is to pay your annual membership fee: online from your dashboard, or in cash or by transfer directly to PACA (a PACA administrator then confirms it).",
+        "As soon as your payment is confirmed, your membership becomes active for one full year and you unlock your member badge, the certification exam, the study library, the Agile job board and member discounts.",
       ],
       cta: { label: "Go to my dashboard and pay", url: this.link("/dashboard") },
     });

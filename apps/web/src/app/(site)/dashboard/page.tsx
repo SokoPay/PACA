@@ -39,7 +39,7 @@ const PAYMENT_STATUS: Record<PaymentView["status"], string> = {
   REFUNDED: "Refunded",
 };
 
-const CHANNEL: Record<string, string> = { card: "Card", mobile_money: "Mobile money", bank: "Bank", bank_transfer: "Bank transfer" };
+const CHANNEL: Record<string, string> = { card: "Card", mobile_money: "Mobile money", bank: "Bank", bank_transfer: "Bank transfer", cash: "Cash" };
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Draft",
@@ -143,13 +143,13 @@ export default function DashboardPage() {
   const badgeUrl = membership ? siteUrl(`/members/${membership.memberNumber}`) : "";
 
   return (
-    <main className="mx-auto max-w-6xl px-5 py-10">
+    <main className="mx-auto max-w-6xl px-4 py-6 sm:px-5 sm:py-10">
       {/* greeting */}
-      <section className="paca-gradient relative overflow-hidden rounded-3xl px-8 py-9 text-white shadow-xl">
+      <section className="paca-gradient relative overflow-hidden rounded-3xl px-5 py-7 text-white shadow-xl sm:px-8 sm:py-9">
         <div className="relative flex flex-wrap items-center justify-between gap-6">
           <div>
             <p className="text-sm text-white/80">My dashboard</p>
-            <h1 className="mt-1 text-3xl font-bold sm:text-4xl">Welcome back, {user?.firstName} 👋</h1>
+            <h1 className="mt-1 break-words text-2xl font-bold sm:text-4xl">Welcome back, {user?.firstName} 👋</h1>
             <p className="mt-2 text-white/85">
               {active
                 ? `${tier ? TIER_LABEL[tier] : ""} member · ${membership?.memberNumber}`
@@ -216,6 +216,11 @@ export default function DashboardPage() {
           <p className="mt-2 text-sm leading-relaxed" style={{ color: action.kind === "PAY" ? "var(--color-paca-800)" : "var(--text-muted)" }}>
             {action.message}
           </p>
+          {action.kind === "PAY" && (
+            <p className="mt-2 text-xs" style={{ color: "var(--color-paca-800)" }}>
+              Paying in cash or by transfer directly to PACA? An administrator confirms it and your membership becomes active.
+            </p>
+          )}
           <div className="mt-4">
             {action.kind === "PAY" && (
               <PayMembershipButton
@@ -294,14 +299,14 @@ export default function DashboardPage() {
           <h2 className="text-xl font-bold">{active ? "Your member benefits" : "Benefits waiting for you"}</h2>
           {!active && <span className="text-sm" style={{ color: "var(--text-muted)" }}>🔒 Unlock with a paid membership</span>}
         </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {PRIVILEGES.map((p) => {
             const locked = !active && !p.free;
             return (
               <Link
                 key={p.title}
                 href={p.href}
-                className="group flex flex-col rounded-2xl border p-5 transition hover:-translate-y-0.5 hover:border-paca-500 hover:shadow-lg"
+                className="group flex min-w-0 flex-col rounded-2xl border p-3.5 transition sm:p-5 hover:-translate-y-0.5 hover:border-paca-500 hover:shadow-lg"
                 style={{ borderColor: "var(--border)", background: "var(--surface)" }}
               >
                 <div className="flex items-center justify-between">
@@ -312,8 +317,8 @@ export default function DashboardPage() {
                     <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: "#d4f5e2", color: "#146c3b" }}>Free</span>
                   ) : null}
                 </div>
-                <h3 className="mt-4 font-semibold group-hover:text-paca-600">{p.title}</h3>
-                <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>{p.body}</p>
+                <h3 className="mt-3 text-sm font-semibold group-hover:text-paca-600 sm:mt-4 sm:text-base">{p.title}</h3>
+                <p className="mt-1 text-xs leading-relaxed sm:text-sm" style={{ color: "var(--text-muted)" }}>{p.body}</p>
               </Link>
             );
           })}
@@ -332,14 +337,14 @@ export default function DashboardPage() {
               New roles are added twice a day — they&rsquo;ll appear here and in your notifications.
             </p>
           ) : (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {jobs.map((j) => (
                 <a
                   key={j.id}
                   href={j.applyUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-start gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:border-paca-500 hover:shadow-md"
+                  className="flex min-w-0 items-start gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:border-paca-500 hover:shadow-md"
                   style={{ borderColor: "var(--border)", background: "var(--surface)" }}
                 >
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-paca-50 font-bold text-paca-600">{j.company.charAt(0)}</span>
@@ -424,7 +429,21 @@ export default function DashboardPage() {
       {payments.length > 0 && (
         <section className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Payments</h2>
-          <div className="mt-3 overflow-x-auto rounded-2xl border" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+          <ul className="mt-3 space-y-2 sm:hidden">
+            {payments.map((p) => (
+              <li key={p.id} className="rounded-2xl border p-4 text-sm" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-semibold">{formatMoney(p.amount, p.currency)}</span>
+                  <span className="text-xs font-semibold">{PAYMENT_STATUS[p.status]}</span>
+                </div>
+                <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                  {new Date(p.paidAt ?? p.createdAt).toLocaleDateString()} · {p.channel ? (CHANNEL[p.channel] ?? p.channel) : "—"}
+                </div>
+                <div className="mt-1 break-all font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>{p.reference}</div>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 hidden overflow-x-auto rounded-2xl border sm:block" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
             <table className="w-full text-left text-sm">
               <thead style={{ color: "var(--text-muted)" }}>
                 <tr>

@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ApiError, fetchMyApplications, reopenApplication, restoreSession, type ApplicationRecord } from "@/lib/api";
+import {
+  ApiError,
+  fetchMembershipStatus,
+  fetchMyApplications,
+  reopenApplication,
+  restoreSession,
+  type ApplicationRecord,
+  type MembershipStatus,
+} from "@/lib/api";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { ApplicationAnswers, StatusPill, documentLabels } from "@/components/ApplicationAnswers";
 
@@ -16,6 +24,7 @@ export default function MyApplicationsPage() {
   const [apps, setApps] = useState<ApplicationRecord[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [membership, setMembership] = useState<MembershipStatus["membership"] | undefined>(undefined);
 
   useEffect(() => {
     (async () => {
@@ -24,7 +33,9 @@ export default function MyApplicationsPage() {
         return;
       }
       try {
-        setApps(await fetchMyApplications());
+        const [list, status] = await Promise.all([fetchMyApplications(), fetchMembershipStatus().catch(() => null)]);
+        setApps(list);
+        setMembership(status?.membership ?? null);
       } catch (err) {
         setError(err instanceof ApiError ? err.message : "Could not load your applications.");
       }
@@ -77,6 +88,8 @@ export default function MyApplicationsPage() {
 
       <div className="mt-6 space-y-6">
         {apps?.map((a, i) => {
+          // Only the newest approved application speaks for the current membership.
+          const currentApproved = a.status === "APPROVED" && apps.find((x) => x.status === "APPROVED")?.id === a.id;
           const editable = ["DRAFT", "DECLINED", "SUBMITTED", "UNDER_REVIEW"].includes(a.status);
           const missing = a.form.documents.filter((r) => r.required && !a.documents.some((d) => d.kind === r.kind));
           return (
@@ -118,11 +131,7 @@ export default function MyApplicationsPage() {
                     This application has not been submitted. The review panel only sees it after you press Submit.
                   </p>
                 )}
-                {a.status === "APPROVED" && (
-                  <p className="rounded-xl px-4 py-3 text-sm" style={{ background: "#d4f5e2", color: "#146c3b" }}>
-                    Approved — go to your <Link href="/dashboard" className="font-semibold underline">dashboard</Link> to pay and activate your membership.
-                  </p>
-                )}
+                {currentApproved && membership !== undefined && <PaymentState membership={membership} />}
 
                 <details open={i === 0}>
                   <summary className="cursor-pointer text-sm font-bold">Your answers</summary>
@@ -144,5 +153,46 @@ export default function MyApplicationsPage() {
         })}
       </div>
     </main>
+  );
+}
+
+/**
+ * What an approved application means right now. Approval alone does not make a
+ * membership active: it becomes active only once payment is confirmed (online by
+ * Paystack, or by a PACA administrator for cash / direct transfer).
+ */
+function PaymentState({ membership }: { membership: MembershipStatus["membership"] }) {
+  if (membership?.status === "ACTIVE") {
+    return (
+      <p className="rounded-xl px-4 py-3 text-sm" style={{ background: "#d4f5e2", color: "#146c3b" }}>
+        <strong>Approved and paid.</strong> Your membership {membership.memberNumber} is active
+        {membership.currentPeriodEnd ? ` until ${fmtDate(membership.currentPeriodEnd)}` : ""}.
+      </p>
+    );
+  }
+  if (membership?.status === "LAPSED") {
+    return (
+      <p className="rounded-xl px-4 py-3 text-sm" style={{ background: "#fdf2d0", color: "#8a6100" }}>
+        Your membership has expired. Renew it from your{" "}
+        <Link href="/dashboard" className="font-semibold underline">dashboard</Link> to restore your benefits.
+      </p>
+    );
+  }
+  if (membership?.status === "PENDING_PAYMENT") {
+    return (
+      <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "#fdf2d0", color: "#8a6100" }}>
+        <p>
+          <strong>Approved, but not active yet: payment not confirmed.</strong> Pay online from your{" "}
+          <Link href="/dashboard" className="font-semibold underline">dashboard</Link>, or pay PACA in cash or by transfer and an
+          administrator will confirm it.
+        </p>
+        <p className="mt-1 text-xs">Until payment is confirmed you cannot sit the exam or download badges.</p>
+      </div>
+    );
+  }
+  return (
+    <p className="rounded-xl px-4 py-3 text-sm" style={{ background: "#d4f5e2", color: "#146c3b" }}>
+      Approved.
+    </p>
   );
 }

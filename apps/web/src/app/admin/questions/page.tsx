@@ -5,6 +5,7 @@ import {
   ApiError,
   fetchQueue,
   fetchStats,
+  DIFFICULTY_LABEL,
   type Difficulty,
   type QueueItem,
   type QuestionOriginValue,
@@ -117,10 +118,10 @@ export default function AllQuestionsPage() {
           className="rounded border px-2 py-1 text-xs"
           style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
         >
-          <option value="">All difficulties</option>
+          <option value="">All exams (every membership type)</option>
           {DIFFICULTIES.map((d) => (
             <option key={d} value={d}>
-              {d}
+              {DIFFICULTY_LABEL[d]}
             </option>
           ))}
         </select>
@@ -139,7 +140,7 @@ export default function AllQuestionsPage() {
             <tr className="border-b text-xs uppercase tracking-wide" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
               <th className="py-2 pr-3">Stem</th>
               <th className="py-2 pr-3">Topic</th>
-              <th className="py-2 pr-3">Difficulty</th>
+              <th className="py-2 pr-3">Exam</th>
               <th className="py-2 pr-3">Origin</th>
               <th className="py-2 pr-3">Status</th>
             </tr>
@@ -151,7 +152,7 @@ export default function AllQuestionsPage() {
                 <td className="py-2 pr-3 text-xs" style={{ color: "var(--text-muted)" }}>
                   {q.topic.name}
                 </td>
-                <td className="py-2 pr-3 text-xs">{q.difficulty}</td>
+                <td className="py-2 pr-3 text-xs">{DIFFICULTY_LABEL[q.difficulty] ?? q.difficulty}</td>
                 <td className="py-2 pr-3 text-xs">
                   <span
                     className="rounded px-1.5 py-0.5"
