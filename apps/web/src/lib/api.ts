@@ -1095,7 +1095,25 @@ export interface AdminAttemptPage {
   pageSize: number;
 }
 
-export function fetchAdminAssessments(params: { status?: string; passed?: boolean; page?: number; pageSize?: number }): Promise<AdminAttemptPage> {
+export type AttemptCategory = "FREE" | "STUDENT" | "PROFESSIONAL" | "EXECUTIVE";
+
+export interface AttemptCategoryStats {
+  key: AttemptCategory;
+  label: string;
+  started: number;
+  completed: number;
+  passed: number;
+  people: number;
+  averageScoreBps: number | null;
+}
+
+export function fetchAdminAssessments(params: {
+  status?: string;
+  passed?: boolean;
+  category?: AttemptCategory;
+  page?: number;
+  pageSize?: number;
+}): Promise<AdminAttemptPage> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined) qs.set(k, String(v));
@@ -1103,7 +1121,12 @@ export function fetchAdminAssessments(params: { status?: string; passed?: boolea
   return api<AdminAttemptPage>(`/admin/assessments?${qs.toString()}`);
 }
 
-export function fetchAdminAssessmentStats(): Promise<{ total: number; submitted: number; passed: number }> {
+export function fetchAdminAssessmentStats(): Promise<{
+  total: number;
+  submitted: number;
+  passed: number;
+  categories?: AttemptCategoryStats[];
+}> {
   return api("/admin/assessments/stats");
 }
 
