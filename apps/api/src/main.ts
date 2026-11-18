@@ -26,8 +26,21 @@ async function bootstrap(): Promise<void> {
   );
 
   await app.register(helmet, {
-    contentSecurityPolicy: false, // the API serves JSON, not documents
+    // The API serves JSON and member documents, never pages: lock everything down.
+    contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'self'"] } },
+    crossOriginResourcePolicy: { policy: "same-origin" },
+    hsts: { maxAge: 31_536_000, includeSubDomains: true },
   });
+
+  // Personal data must not linger in browser or proxy caches (or be shown again
+  // by the Back button after sign-out). Routes that set their own policy keep it.
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .addHook("onSend", async (_req, reply, payload) => {
+      if (!reply.hasHeader("cache-control")) reply.header("cache-control", "no-store");
+      return payload;
+    });
 
   await app.register(multipart, {
     limits: { fileSize: 8 * 1024 * 1024, files: 1 },

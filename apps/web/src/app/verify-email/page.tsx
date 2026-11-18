@@ -8,7 +8,7 @@ import { ApiError, resendVerificationCode, restoreSession, verifyEmail, type Ses
 function VerifyEmailForm() {
   const router = useRouter();
   const next = useSearchParams().get("next");
-  const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  const safeNext = next && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : "/dashboard";
 
   const [user, setUser] = useState<SessionUser | null>(null);
   const [code, setCode] = useState("");

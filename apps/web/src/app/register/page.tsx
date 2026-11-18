@@ -50,7 +50,7 @@ function RegisterForm() {
 
       // Sign the new member straight in — an extra login step here loses people.
       await login(form.email.trim(), form.password);
-      const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+      const safeNext = next && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : null;
       // A 6-digit code is on its way to their inbox — confirm it before anything else.
       router.push(`/verify-email${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""}`);
     } catch (err) {

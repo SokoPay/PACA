@@ -23,6 +23,8 @@ export class VerifyController {
     const cert = await this.certificates.getByCredentialId(credentialId);
     const doc = this.certificates.renderPdf(cert);
     res.header("Content-Type", "application/pdf");
+    // Browsers' built-in PDF viewers can refuse to render under a strict CSP.
+    res.removeHeader("content-security-policy");
     res.header("Content-Disposition", `inline; filename="${cert.credentialId}.pdf"`);
     res.send(doc);
   }

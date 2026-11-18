@@ -38,6 +38,8 @@ const schema = z.object({
   JWT_REFRESH_SECRET: z.string().min(MIN_SECRET_LENGTH, `must be at least ${MIN_SECRET_LENGTH} characters`),
   JWT_ACCESS_TTL: z.string().default("15m"),
   JWT_REFRESH_TTL: z.string().default("30d"),
+  /** Members are signed out after this many minutes without activity (never during an exam). */
+  SESSION_IDLE_MINUTES: z.coerce.number().int().min(5).max(24 * 60).default(30),
   COOKIE_DOMAIN: z.string().default("127.0.0.1"),
 
   /** Where application documents are written. Point at a persistent volume in deployment. */

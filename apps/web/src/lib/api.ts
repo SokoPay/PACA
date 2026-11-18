@@ -1,14 +1,13 @@
 /**
  * API client.
  *
- * Token handling: the access token lives in memory only. The refresh token goes to
- * sessionStorage — not localStorage — so it dies with the tab and is not shared
- * across windows.
- *
- * This is a deliberate interim position. The correct end state is the refresh token
- * in an httpOnly, SameSite=Strict cookie so JavaScript cannot read it at all; that
- * needs the API to set cookies, which is a change to the auth controller. Until
- * then, any XSS in this admin UI could exfiltrate a session.
+ * Token handling:
+ * - The access token (15 minutes) lives in page memory only — never in storage.
+ * - The refresh token lives only in an httpOnly, SameSite=Strict cookie set by the
+ *   API. Page JavaScript cannot read it, so an injected script cannot steal a
+ *   session, and other sites cannot make the browser use it.
+ * - localStorage holds just a "signed in" hint (no secret) so pages know whether
+ *   to try restoring a session and so signing out in one tab signs out the others.
  */
 
 /**
@@ -20,7 +19,10 @@
 const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:4100/api/v1";
 const API_URL =
   typeof window === "undefined" ? (process.env.INTERNAL_API_URL ?? PUBLIC_API_URL) : PUBLIC_API_URL;
-const REFRESH_KEY = "paca.refresh";
+/** Non-secret hint that this browser has a session cookie. */
+const SESSION_HINT = "paca.session";
+/** Where older versions kept the refresh token; read once to migrate, then deleted. */
+const LEGACY_REFRESH_KEY = "paca.refresh";
 
 let accessToken: string | null = null;
 
@@ -46,25 +48,42 @@ export class ApiError extends Error {
   }
 }
 
-// The refresh token lives in localStorage so a member stays signed in across
-// pages, tabs and browser restarts until they sign out (or it expires, 30 days).
-function setRefreshToken(token: string | null): void {
+function setSessionHint(on: boolean): void {
   try {
-    if (token) localStorage.setItem(REFRESH_KEY, token);
-    else localStorage.removeItem(REFRESH_KEY);
-    sessionStorage.removeItem(REFRESH_KEY); // pre-localStorage location
+    if (on) localStorage.setItem(SESSION_HINT, "1");
+    else localStorage.removeItem(SESSION_HINT);
   } catch {
-    // Private browsing or blocked storage — the session simply won't survive reload.
+    // Blocked storage: the cookie still works; we just cannot hint other tabs.
   }
 }
 
-function getRefreshToken(): string | null {
+function hasSessionHint(): boolean {
   try {
-    return localStorage.getItem(REFRESH_KEY) ?? sessionStorage.getItem(REFRESH_KEY);
+    return localStorage.getItem(SESSION_HINT) === "1" || Boolean(legacyRefreshToken());
+  } catch {
+    return false;
+  }
+}
+
+function legacyRefreshToken(): string | null {
+  try {
+    return localStorage.getItem(LEGACY_REFRESH_KEY) ?? sessionStorage.getItem(LEGACY_REFRESH_KEY);
   } catch {
     return null;
   }
 }
+
+function clearLegacyRefreshToken(): void {
+  try {
+    localStorage.removeItem(LEGACY_REFRESH_KEY);
+    sessionStorage.removeItem(LEGACY_REFRESH_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** When the session was last renewed — the idle timer uses this to keep active members signed in. */
+let lastRenewedAt = 0;
 
 // ---------------------------------------------------------------- shared session state
 // One signed-in user for the whole app, so the site header, dashboard and every
@@ -95,7 +114,7 @@ export function patchCurrentUser(patch: Partial<SessionUser>): void {
 if (typeof window !== "undefined") {
   // Signing out in one tab signs out the others.
   window.addEventListener("storage", (e) => {
-    if (e.key === REFRESH_KEY && !e.newValue) {
+    if (e.key === SESSION_HINT && !e.newValue) {
       accessToken = null;
       setCurrentUser(null);
     }
@@ -103,7 +122,7 @@ if (typeof window !== "undefined") {
 }
 
 export function hasSession(): boolean {
-  return Boolean(accessToken || getRefreshToken());
+  return Boolean(accessToken || hasSessionHint());
 }
 
 async function parseError(res: Response): Promise<ApiError> {
@@ -127,7 +146,7 @@ async function rawFetch(path: string, init: RequestInit = {}): Promise<Response>
     headers.set("content-type", "application/json");
   }
   if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
-  return fetch(`${API_URL}${path}`, { ...init, headers });
+  return fetch(`${API_URL}${path}`, { cache: "no-store", ...init, headers });
 }
 
 let refreshInFlight: Promise<boolean> | null = null;
@@ -147,35 +166,61 @@ function refreshSession(): Promise<boolean> {
 }
 
 async function doRefresh(retried = false): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
+  if (!hasSessionHint()) return false;
+  const legacy = legacyRefreshToken();
 
-  const res = await fetch(`${API_URL}/auth/refresh`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      // The cookie carries the token. Only a browser signed in before the cookie
+      // change sends its old stored token, once, to move it into the cookie.
+      body: JSON.stringify(legacy ? { refreshToken: legacy } : {}),
+    });
+  } catch {
+    return false; // offline: keep the hint and try again later
+  }
 
   if (!res.ok) {
-    // Another tab may have rotated the shared token a moment ago — use its successor.
-    const latest = getRefreshToken();
-    if (!retried && latest && latest !== refreshToken) return doRefresh(true);
+    // Another tab may have renewed the shared cookie a moment ago — try once more.
+    if (!retried && res.status === 401) {
+      await new Promise((r) => setTimeout(r, 400));
+      return doRefresh(true);
+    }
     accessToken = null;
-    if (res.status === 401) setRefreshToken(null);
+    if (res.status === 401) {
+      setSessionHint(false);
+      clearLegacyRefreshToken();
+    }
     setCurrentUser(null);
     return false;
   }
 
   const data = await res.json();
   accessToken = data.accessToken;
-  setRefreshToken(data.refreshToken);
+  clearLegacyRefreshToken();
+  setSessionHint(true);
+  lastRenewedAt = Date.now();
   return true;
+}
+
+/**
+ * Called by the idle timer while the member is active: renews the session every
+ * few minutes so the server's 30-minute idle limit only ever catches abandoned
+ * sessions, never someone who is reading or working.
+ */
+export async function keepSessionAlive(): Promise<void> {
+  if (!accessToken || Date.now() - lastRenewedAt < 5 * 60_000) return;
+  await refreshSession();
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res = await rawFetch(path, init);
 
-  if (res.status === 401 && getRefreshToken()) {
+  if (res.status === 401 && hasSessionHint()) {
     if (await refreshSession()) res = await rawFetch(path, init);
   }
 
@@ -217,6 +262,8 @@ export async function resetPassword(token: string, password: string): Promise<{ 
 export async function login(email: string, password: string): Promise<SessionUser> {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
+    credentials: "include",
+    cache: "no-store",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
@@ -225,22 +272,27 @@ export async function login(email: string, password: string): Promise<SessionUse
 
   const data = await res.json();
   accessToken = data.accessToken;
-  setRefreshToken(data.refreshToken);
+  clearLegacyRefreshToken();
+  setSessionHint(true);
+  lastRenewedAt = Date.now();
   setCurrentUser(data.user as SessionUser);
   return data.user as SessionUser;
 }
 
 export async function logout(): Promise<void> {
-  const refreshToken = getRefreshToken();
+  const legacy = legacyRefreshToken();
   accessToken = null;
-  setRefreshToken(null);
+  setSessionHint(false);
+  clearLegacyRefreshToken();
   setCurrentUser(null);
-  if (!refreshToken) return;
   try {
+    // The API revokes the session and clears the httpOnly cookie.
     await fetch(`${API_URL}/auth/logout`, {
       method: "POST",
+      credentials: "include",
+      cache: "no-store",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify(legacy ? { refreshToken: legacy } : {}),
     });
   } catch {
     // Local session is already cleared; a failed server call is not worth blocking on.
@@ -263,7 +315,7 @@ export function restoreSession(): Promise<SessionUser | null> {
 
 async function doRestore(): Promise<SessionUser | null> {
   if (!accessToken) {
-    if (!getRefreshToken()) {
+    if (!hasSessionHint()) {
       setCurrentUser(null);
       return null;
     }
@@ -542,7 +594,7 @@ function documentBase(scope: DocumentScope, applicationId: string, documentId: s
 export async function fetchDocumentBlobUrl(scope: DocumentScope, applicationId: string, documentId: string): Promise<string> {
   const path = `${documentBase(scope, applicationId, documentId)}/file`;
   let res = await rawFetch(path);
-  if (res.status === 401 && getRefreshToken()) {
+  if (res.status === 401 && hasSessionHint()) {
     if (await refreshSession()) res = await rawFetch(path);
   }
   if (!res.ok) throw await parseError(res);
@@ -582,7 +634,7 @@ export function deleteApplicationDocument(applicationId: string, documentId: str
 /** Fetches the file as a blob (auth header required) and opens it in a new tab. */
 export async function viewApplicationDocument(applicationId: string, documentId: string): Promise<void> {
   let res = await rawFetch(`/membership/applications/${applicationId}/documents/${documentId}/file`);
-  if (res.status === 401 && getRefreshToken()) {
+  if (res.status === 401 && hasSessionHint()) {
     if (await refreshSession()) res = await rawFetch(`/membership/applications/${applicationId}/documents/${documentId}/file`);
   }
   if (!res.ok) throw await parseError(res);
@@ -1087,7 +1139,7 @@ export function fetchMyCertificates(): Promise<CertificateItem[]> {
 /** Opens the certificate PDF in a new tab (auth required — reuses the same pattern as document viewing). */
 export async function viewCertificatePdf(id: string): Promise<void> {
   let res = await rawFetch(`/certificates/${id}/pdf`);
-  if (res.status === 401 && getRefreshToken()) {
+  if (res.status === 401 && hasSessionHint()) {
     if (await refreshSession()) res = await rawFetch(`/certificates/${id}/pdf`);
   }
   if (!res.ok) throw await parseError(res);
@@ -1151,7 +1203,7 @@ export async function openLibraryBook(id: string): Promise<void> {
   const tab = window.open("", "_blank");
   try {
     let res = await rawFetch(`/library/${id}/file`);
-    if (res.status === 401 && getRefreshToken()) {
+    if (res.status === 401 && hasSessionHint()) {
       if (await refreshSession()) res = await rawFetch(`/library/${id}/file`);
     }
     if (!res.ok) throw await parseError(res);

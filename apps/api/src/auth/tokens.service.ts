@@ -37,6 +37,8 @@ function parseDuration(spec: string): number {
 export class TokensService {
   private readonly logger = new Logger(TokensService.name);
   private readonly env = loadEnv();
+  /** Idle limit for a session, plus one access-token lifetime of slack (see rotate). */
+  private readonly idleLimitMs = this.env.SESSION_IDLE_MINUTES * 60_000 + parseDuration(this.env.JWT_ACCESS_TTL);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -118,6 +120,22 @@ export class TokensService {
 
     if (existing.user.deletedAt || existing.user.status === "SUSPENDED" || existing.user.status === "DELETED") {
       throw new UnauthorizedException("Account is not active");
+    }
+
+    // Idle sign-out. An active browser renews its session well within every
+    // access-token lifetime, so a refresh token that has sat unused for longer
+    // than the idle limit (plus one access-token lifetime of slack) belongs to an
+    // abandoned session. Members part-way through a timed exam or test are never
+    // signed out: their attempt must be able to finish and be submitted.
+    const idleForMs = Date.now() - existing.createdAt.getTime();
+    if (idleForMs > this.idleLimitMs) {
+      const sitting = await this.prisma.attempt.count({
+        where: { userId: existing.userId, status: "IN_PROGRESS", expiresAt: { gt: new Date() } },
+      });
+      if (sitting === 0) {
+        await this.prisma.refreshToken.updateMany({ where: { id: existing.id, revokedAt: null }, data: { revokedAt: new Date() } });
+        throw new UnauthorizedException("You were signed out after 30 minutes of inactivity");
+      }
     }
 
     // Revoke the presented token, then mint its successor in the same family. The

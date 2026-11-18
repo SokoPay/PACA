@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { beginExamSession } from "@/lib/activity";
 import {
   ApiError,
   answerAssessmentQuestion,
@@ -55,6 +56,9 @@ export function AttemptRunner({
       finishing.current = false;
     }
   }, [attempt.id, onFinished]);
+
+  // An open exam or test is never cut short by the idle sign-out.
+  useEffect(() => beginExamSession(), []);
 
   useEffect(() => {
     const tick = () => {

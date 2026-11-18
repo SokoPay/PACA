@@ -10,6 +10,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
+  const idle = searchParams.get("reason") === "idle";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +26,7 @@ function LoginForm() {
 
       // Only ever follow a same-site path, never an absolute URL — an open
       // redirect here would be a ready-made phishing vector.
-      const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+      const safeNext = next && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : null;
       if (user.role === "MEMBER" && !user.emailVerifiedAt) {
         router.push(`/verify-email${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ""}`);
         return;
@@ -51,6 +52,12 @@ function LoginForm() {
           Access your membership, exams and benefits
         </p>
       </div>
+
+      {idle && (
+        <p role="status" className="mb-4 rounded-lg px-3 py-2 text-sm" style={{ background: "#fdf2d0", color: "#8a6100" }}>
+          You were signed out after 30 minutes of inactivity, to keep your account safe. Sign in again to continue.
+        </p>
+      )}
 
       <form onSubmit={onSubmit} className="space-y-4">
         <div>

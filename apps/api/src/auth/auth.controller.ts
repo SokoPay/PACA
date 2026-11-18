@@ -1,5 +1,6 @@
-import { Body, Controller, Get, HttpCode, Post, Req, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
 import { RouteConfig } from "@nestjs/platform-fastify";
+import type { FastifyReply } from "fastify";
 import { z } from "zod";
 import { AuthService } from "./auth.service";
 import { EmailVerificationService } from "./email-verification.service";
@@ -8,6 +9,8 @@ import { Public } from "../common/decorators/public.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import type { AuthenticatedUser } from "../common/guards/jwt-auth.guard";
+import { REFRESH_COOKIE, clearRefreshCookie, readCookie, refreshCookie } from "./refresh-cookie";
+import { loadEnv } from "../config/env";
 
 /**
  * Password policy: length beats composition rules. NIST guidance is explicit that
@@ -42,7 +45,11 @@ const loginSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
-const refreshSchema = z.object({ refreshToken: z.string().min(1) });
+// The token normally arrives in the httpOnly cookie. A body token is accepted
+// only so browsers signed in before the cookie change can migrate once.
+const refreshSchema = z.object({ refreshToken: z.string().min(1).max(200).optional() }).default({});
+
+type CookieReq = { ip?: string; headers: Record<string, string | undefined> };
 
 const forgotSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address").max(320),
@@ -65,6 +72,8 @@ const RESEND_LIMIT = { rateLimit: { max: 3, timeWindow: "1 minute" } };
 
 @Controller("auth")
 export class AuthController {
+  private readonly secureCookie = loadEnv().API_PUBLIC_URL.startsWith("https://");
+
   constructor(
     private readonly auth: AuthService,
     private readonly verification: EmailVerificationService,
@@ -116,29 +125,53 @@ export class AuthController {
   @RouteConfig(STRICT_LIMIT)
   @Post("login")
   @HttpCode(200)
-  login(
+  async login(
     @Body(new ZodValidationPipe(loginSchema)) body: z.infer<typeof loginSchema>,
-    @Req() req: { ip?: string; headers: Record<string, string | undefined> },
+    @Req() req: CookieReq,
+    @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    return this.auth.login(body.email, body.password, context(req));
+    const { refreshToken, expiresAt, ...rest } = await this.auth.login(body.email, body.password, context(req));
+    noStore(reply).header("set-cookie", refreshCookie(refreshToken, expiresAt, this.secureCookie));
+    return rest; // access token + user; the refresh token never appears in a response body
   }
 
   @Public()
   @RouteConfig(REFRESH_LIMIT)
   @Post("refresh")
   @HttpCode(200)
-  refresh(
+  async refresh(
     @Body(new ZodValidationPipe(refreshSchema)) body: z.infer<typeof refreshSchema>,
-    @Req() req: { ip?: string; headers: Record<string, string | undefined> },
+    @Req() req: CookieReq,
+    @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    return this.auth.refresh(body.refreshToken, context(req));
+    noStore(reply);
+    const presented = readCookie(req.headers.cookie, REFRESH_COOKIE) ?? body.refreshToken;
+    if (!presented) throw new UnauthorizedException("Not signed in");
+    try {
+      const { refreshToken, expiresAt, ...rest } = await this.auth.refresh(presented, context(req));
+      reply.header("set-cookie", refreshCookie(refreshToken, expiresAt, this.secureCookie));
+      return rest;
+    } catch (err) {
+      // A tab racing another tab's rotation must NOT clear the cookie: the
+      // browser may already hold the fresh successor.
+      if (!(err instanceof UnauthorizedException && /already rotated/i.test(err.message))) {
+        reply.header("set-cookie", clearRefreshCookie(this.secureCookie));
+      }
+      throw err;
+    }
   }
 
   @Public()
   @Post("logout")
   @HttpCode(204)
-  async logout(@Body(new ZodValidationPipe(refreshSchema)) body: z.infer<typeof refreshSchema>) {
-    await this.auth.logout(body.refreshToken);
+  async logout(
+    @Body(new ZodValidationPipe(refreshSchema)) body: z.infer<typeof refreshSchema>,
+    @Req() req: CookieReq,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const presented = readCookie(req.headers.cookie, REFRESH_COOKIE) ?? body.refreshToken;
+    noStore(reply).header("set-cookie", clearRefreshCookie(this.secureCookie));
+    if (presented) await this.auth.logout(presented);
   }
 
   @RouteConfig(VERIFY_LIMIT)
@@ -165,6 +198,10 @@ export class AuthController {
     if (!found) throw new UnauthorizedException("Account not found");
     return found;
   }
+}
+
+function noStore(reply: FastifyReply): FastifyReply {
+  return reply.header("cache-control", "no-store");
 }
 
 function context(req: { ip?: string; headers: Record<string, string | undefined> }) {
