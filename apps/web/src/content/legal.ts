@@ -283,6 +283,42 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
       },
     ],
   },
+  cookies: {
+    slug: "cookies",
+    title: "Cookie policy",
+    summary: "Which cookies and similar storage PACA uses, why, and how to change your choice.",
+    effectiveFrom: "2026-11-24",
+    sections: [
+      {
+        heading: "Your choice",
+        paragraphs: [
+          "When you first visit PACA we ask whether you accept analytics cookies. Essential storage is always on because the site cannot work without it. Analytics stays off unless you accept it, and you can change your choice at any time with “Cookie settings” at the bottom of every page.",
+        ],
+      },
+      {
+        heading: "Essential (always on)",
+        paragraphs: ["These keep you signed in securely and remember basic preferences. They are never used for advertising."],
+        bullets: [
+          "paca_rt: a secure, httpOnly cookie that keeps you signed in (30 days, or until you sign out or are inactive for 30 minutes).",
+          "paca.session, paca.lastActive: browser storage that lets open tabs know you are signed in and handles automatic sign-out after inactivity.",
+          "paca.consent: remembers your cookie choice.",
+          "Paystack sets its own cookies inside its secure payment window when you pay; see Paystack's privacy policy.",
+        ],
+      },
+      {
+        heading: "Analytics (only with your consent)",
+        paragraphs: [
+          "If you accept, we use Google Analytics 4 to understand which pages are visited and how people move through the site, so we can improve it. Google Analytics sets cookies named _ga and _ga_<id> that last up to two years. IP addresses are not stored by Google Analytics 4. We do not use advertising or remarketing cookies.",
+        ],
+      },
+      {
+        heading: "Changing your mind",
+        paragraphs: [
+          "Choose “Cookie settings” in the footer and select “Essential only”. Analytics stops immediately; you can also delete existing cookies in your browser settings.",
+        ],
+      },
+    ],
+  },
 };
 
 export const LEGAL_SLUGS = Object.keys(LEGAL_DOCS);

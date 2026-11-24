@@ -3,11 +3,9 @@ import { fetchFaqItems } from "@/lib/api";
 import { BUILT_IN_FAQ, FAQ_CATEGORIES } from "@/lib/faq";
 import { PageHero } from "@/components/PageHero";
 import { FaqAccordion } from "@/components/FaqAccordion";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = {
-  title: "Questions & answers",
-  description: "Frequently asked questions about PACA membership, payment, exams, badges and your account.",
-};
+export const metadata = pageMeta("Questions & answers", "Frequently asked questions about PACA membership, payment, exams, badges and your account.", "/faq");
 
 export default async function FaqPage() {
   // Questions published by PACA staff are shown alongside the built-in ones.

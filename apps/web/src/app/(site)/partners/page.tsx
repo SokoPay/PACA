@@ -2,11 +2,9 @@ import Image from "next/image";
 import { fetchPartners } from "@/lib/api";
 import { PARTNERS } from "@/lib/brand";
 import { PageHero } from "@/components/PageHero";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = {
-  title: "Partners",
-  description: "Organisations PACA partners with for training, tooling and discounts.",
-};
+export const metadata = pageMeta("Partners", "Organisations PACA partners with for training, tooling and discounts.", "/partners");
 
 export default async function PartnersPage() {
   const known = new Set(PARTNERS.map((p) => p.name.toLowerCase()));

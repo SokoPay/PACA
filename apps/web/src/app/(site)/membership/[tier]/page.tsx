@@ -3,8 +3,21 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { fetchTiers, formatUsd, type TierInfo } from "@/lib/api";
 import { badgeFor } from "@/lib/brand";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ tier: string }> }) {
+  const slug = (await params).tier.toLowerCase();
+  const tiers = await fetchTiers().catch(() => [] as TierInfo[]);
+  const tier = Array.isArray(tiers) ? tiers.find((t) => t.tier === slug.toUpperCase()) : undefined;
+  if (!tier) return { title: "Membership" };
+  return pageMeta(
+    `${tier.displayName} membership`,
+    `Who ${tier.displayName} membership is for, what it costs (${formatUsd(tier.priceUsdCents)} a year), its benefits and how to apply to PACA.`,
+    `/membership/${slug}`,
+  );
+}
 
 const ELIGIBILITY: Record<string, { summary: string; criteria: string[] }> = {
   STUDENT: {

@@ -6,12 +6,19 @@ import { fetchPartnerOffers } from "@/lib/api";
 import { coursesFor, partnerInfo, type PartnerCourse } from "@/lib/catalog";
 import { partnerBrand } from "@/lib/brand";
 import { CourseCard } from "@/components/CourseCard";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ partner: string }> }) {
-  const info = partnerInfo((await params).partner);
-  return { title: info ? `${info.name} courses` : "Courses" };
+  const slug = (await params).partner;
+  const info = partnerInfo(slug);
+  if (!info) return { title: "Courses" };
+  return pageMeta(
+    `${info.name} courses`,
+    `${info.name} courses for Agile practitioners: ${info.tagline} PACA members get partner discounts.`.slice(0, 300),
+    `/courses/partners/${slug}`,
+  );
 }
 
 export default async function PartnerCoursesPage({ params }: { params: Promise<{ partner: string }> }) {

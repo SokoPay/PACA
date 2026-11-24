@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LEGAL_DOCS, LEGAL_SLUGS } from "@/content/legal";
+import { pageMeta } from "@/lib/seo";
 
 export function generateStaticParams() {
   return LEGAL_SLUGS.map((doc) => ({ doc }));
@@ -9,7 +10,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ doc: string }> }) {
   const { doc } = await params;
   const found = LEGAL_DOCS[doc];
-  return found ? { title: `${found.title} — PACA`, description: found.summary } : {};
+  return found ? pageMeta(found.title, found.summary, `/legal/${doc}`) : {};
 }
 
 export default async function LegalPage({ params }: { params: Promise<{ doc: string }> }) {

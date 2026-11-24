@@ -115,7 +115,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ credenti
           </div>
           {badge && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={badge} width={500} height={422} style={{ marginTop: 22, borderRadius: 24 }} alt="" />
+            <img src={badge} width={500} height={422} style={{ marginTop: 22, borderRadius: 24 }} alt="PACA membership badge" />
           )}
           <div style={{ marginTop: 14, fontSize: 22, letterSpacing: 4, textTransform: "uppercase", color: "#b07a10", fontWeight: 700 }}>
             Awarded to

@@ -1,4 +1,5 @@
 import { SiteHeader, SiteFooter } from "@/components/SiteChrome";
+import { StickyMobileCta } from "@/components/StickyMobileCta";
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -6,6 +7,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <SiteHeader />
       <div className="flex-1">{children}</div>
       <SiteFooter />
+      <StickyMobileCta />
     </div>
   );
 }

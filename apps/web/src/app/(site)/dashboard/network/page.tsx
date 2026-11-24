@@ -76,7 +76,7 @@ export default function NetworkPage() {
                 <div key={`${p.memberNumber}-${p.name}`} className="flex flex-col rounded-2xl border p-5" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
                   <div className="flex items-center gap-3">
                     {badge ? (
-                      <Image src={badge.image} alt="" width={56} height={47} className="h-[47px] w-14 rounded-lg object-contain" />
+                      <Image src={badge.image} alt={`${badge.name} badge`} width={56} height={47} className="h-[47px] w-14 rounded-lg object-contain" />
                     ) : (
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-paca-500 font-bold text-white">{p.name.charAt(0)}</div>
                     )}

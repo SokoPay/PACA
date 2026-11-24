@@ -16,6 +16,7 @@ export async function generateMetadata({ params }: { params: Params }) {
     description: `Competency level: ${score.level}. Take the free PACA Agile competency test and see where you stand.`,
     openGraph: { title, description: `Competency level: ${score.level}`, type: "website" },
     twitter: { card: "summary_large_image", title },
+    robots: { index: false, follow: true },
   };
 }
 

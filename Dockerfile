@@ -27,6 +27,14 @@ COPY . .
 # to the API by Caddy.
 ARG NEXT_PUBLIC_API_URL=/api/v1
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# Public site address (canonical URLs, sitemap, social cards), Google Analytics 4
+# measurement ID and Google Search Console verification code. Empty = feature off.
+ARG NEXT_PUBLIC_SITE_URL=https://pac-a.org
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_GA_MEASUREMENT_ID=
+ENV NEXT_PUBLIC_GA_MEASUREMENT_ID=$NEXT_PUBLIC_GA_MEASUREMENT_ID
+ARG NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=
+ENV NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=$NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
 
 RUN npm run db:generate \
   && npm run build --workspace=@paca/api \

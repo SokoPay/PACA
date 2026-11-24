@@ -17,8 +17,10 @@ export async function generateMetadata({ params }: { params: Params }) {
   return {
     title,
     description,
+    alternates: { canonical: `/members/${m.memberNumber}` },
     openGraph: { title, description, type: "profile" },
     twitter: { card: "summary_large_image", title, description },
+    robots: { index: false, follow: true },
   };
 }
 

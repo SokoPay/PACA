@@ -230,6 +230,7 @@ export default function DashboardPage() {
                 onPaid={() => {
                   setJustPaid(true);
                   void loadStatus();
+                  router.push("/thank-you?for=payment");
                 }}
               />
             )}

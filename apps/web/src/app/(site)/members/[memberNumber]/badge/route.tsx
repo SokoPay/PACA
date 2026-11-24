@@ -98,7 +98,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ memberNu
         >
           {badge && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={badge} width={500} height={422} style={{ borderRadius: 24 }} alt="" />
+            <img src={badge} width={500} height={422} style={{ borderRadius: 24 }} alt="PACA membership badge" />
           )}
           <div style={{ marginTop: 26, fontSize: 24, letterSpacing: 4, textTransform: "uppercase", color: "#0060cc", fontWeight: 700 }}>
             This badge is held by

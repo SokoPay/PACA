@@ -5,11 +5,9 @@ import { PACA_COURSES, PARTNER_INFO, coursesFor } from "@/lib/catalog";
 import { partnerBrand } from "@/lib/brand";
 import { discountLabel } from "@/components/CourseCard";
 import { PageHero } from "@/components/PageHero";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = {
-  title: "Explore courses",
-  description: "Courses from PACA's training partners Scrum.org, ProKanban.org and Scrum Alliance, with discounts for PACA members.",
-};
+export const metadata = pageMeta("Explore courses", "Courses from PACA's training partners Scrum.org, ProKanban.org and Scrum Alliance, with discounts for PACA members.", "/courses");
 
 export const dynamic = "force-dynamic";
 

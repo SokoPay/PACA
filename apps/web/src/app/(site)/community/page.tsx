@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { PageHero } from "@/components/PageHero";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = {
-  title: "Community",
-  description: "Connect with other PACA members: the professional database, Q&A and jobs board.",
-};
+export const metadata = pageMeta("Community", "Connect with other PACA members: the professional database, Q&A and jobs board.", "/community");
 
 const LINKS: Array<{ href: string; title: string; body: string }> = [
   {

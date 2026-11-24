@@ -94,7 +94,7 @@ export default function MemberJobsPage() {
                 <div className="flex items-start gap-3">
                   {j.companyLogoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={j.companyLogoUrl} alt="" width={44} height={44} className="h-11 w-11 shrink-0 rounded-lg bg-white object-contain" loading="lazy" />
+                    <img src={j.companyLogoUrl} alt={`${j.company} logo`} width={44} height={44} className="h-11 w-11 shrink-0 rounded-lg bg-white object-contain" loading="lazy" />
                   ) : (
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-paca-50 font-bold text-paca-600">{j.company.charAt(0)}</div>
                   )}

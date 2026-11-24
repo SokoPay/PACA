@@ -15,7 +15,7 @@ export function PageHero({
 }) {
   return (
     <section className="paca-gradient grain relative overflow-hidden text-white">
-      <Image src={banner} alt="" fill sizes="100vw" className="hero-echo -z-10 object-cover object-[70%_center]" />
+      <Image src={banner} alt="Agile professionals collaborating" fill sizes="100vw" className="hero-echo -z-10 object-cover object-[70%_center]" />
       <div className="aurora" aria-hidden>
         <span />
         <span />

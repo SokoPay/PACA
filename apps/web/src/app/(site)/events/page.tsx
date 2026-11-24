@@ -3,11 +3,9 @@ import { fetchEvents } from "@/lib/api";
 import { EventCard } from "@/components/EventCard";
 import { PageHero } from "@/components/PageHero";
 import { JourneyCta } from "@/components/JourneyCta";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = {
-  title: "Events",
-  description: "PACA and partner events — meetups, webinars and conferences — with discounts for PACA members.",
-};
+export const metadata = pageMeta("Events", "PACA and partner events — meetups, webinars and conferences — with discounts for PACA members.", "/events");
 
 export const dynamic = "force-dynamic";
 

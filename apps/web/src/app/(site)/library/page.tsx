@@ -1,10 +1,8 @@
 import { fetchResources, TIER_LABEL } from "@/lib/api";
 import { PageHero } from "@/components/PageHero";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = {
-  title: "Digital library",
-  description: "Guides, templates and reference material for Agile, Scrum and Kanban practitioners.",
-};
+export const metadata = pageMeta("Digital library", "Guides, templates and reference books for Agile, Scrum and Kanban practitioners, free to read for paid PACA members.", "/library");
 
 export default async function LibraryPage() {
   const resources = await fetchResources().catch(() => []);

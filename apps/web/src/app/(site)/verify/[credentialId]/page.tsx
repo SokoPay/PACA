@@ -2,7 +2,9 @@ import { certificatePdfUrl, verifyCertificate, type VerifyResult } from "@/lib/a
 
 export const metadata = {
   title: "Verify a certificate",
-  description: "Check that a PACA certificate is genuine.",
+  description: "Check that a PACA certificate is genuine and valid, using its credential ID.",
+  // One page per certificate holder: shareable by link, not listed in search engines.
+  robots: { index: false, follow: true },
 };
 
 const STATUS_LABEL: Record<VerifyResult["status"], string> = {

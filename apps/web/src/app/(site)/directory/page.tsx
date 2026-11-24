@@ -3,11 +3,9 @@ import Link from "next/link";
 import { TIER_LABEL, fetchDirectory } from "@/lib/api";
 import { badgeFor } from "@/lib/brand";
 import { PageHero } from "@/components/PageHero";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = {
-  title: "Professional database",
-  description: "PACA members in good standing who chose to be listed.",
-};
+export const metadata = pageMeta("Professional database", "PACA members in good standing who chose to be listed.", "/directory");
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +32,7 @@ export default async function DirectoryPage() {
             const card = (
               <div className="flex h-full items-center gap-4 rounded-2xl border p-4 transition hover:border-paca-500" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
                 {badge ? (
-                  <Image src={badge.image} alt="" width={64} height={54} className="h-[54px] w-16 shrink-0 rounded-lg object-contain" />
+                  <Image src={badge.image} alt={`${badge.name} badge`} width={64} height={54} className="h-[54px] w-16 shrink-0 rounded-lg object-contain" />
                 ) : (
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-paca-500 font-bold text-white">{p.user.firstName.charAt(0)}</div>
                 )}

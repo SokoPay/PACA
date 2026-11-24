@@ -3,6 +3,7 @@ import Image, { type StaticImageData } from "next/image";
 import { HeaderAuth } from "./HeaderAuth";
 import { JourneyCta } from "./JourneyCta";
 import { MobileNav, type NavItem } from "./MobileNav";
+import { CookieSettingsLink } from "./CookieSettingsLink";
 import { badgeFor, PARTNERS } from "@/lib/brand";
 
 type NavChild = { label: string; href: string; note?: string; image?: StaticImageData; external?: boolean };
@@ -75,7 +76,7 @@ function ChildLink({ c }: { c: NavChild }) {
   const inner = (
     <>
       {c.image ? (
-        <Image src={c.image} alt="" width={40} height={34} className="h-[34px] w-10 shrink-0 rounded object-contain" />
+        <Image src={c.image} alt={`${c.label} badge`} width={40} height={34} className="h-[34px] w-10 shrink-0 rounded object-contain" />
       ) : null}
       <span className="min-w-0">
         <span className="flex items-center gap-1 font-medium">
@@ -193,6 +194,7 @@ export function SiteFooter() {
               ["Terms & conditions", "/legal/terms"],
               ["Data protection", "/legal/data-protection"],
               ["Data usage", "/legal/data-usage"],
+              ["Cookie policy", "/legal/cookies"],
             ],
           },
         ].map((col) => (
@@ -222,6 +224,8 @@ export function SiteFooter() {
 
       <div className="border-t border-white/10 px-5 py-5 text-center text-xs text-white/55">
         &copy; {new Date().getFullYear()} Professional Agile Certification &mdash; Africa. All rights reserved.
+        <span className="mx-2" aria-hidden>&middot;</span>
+        <CookieSettingsLink className="underline underline-offset-2 transition hover:text-white" />
       </div>
     </footer>
   );

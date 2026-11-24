@@ -6,12 +6,14 @@ import { JourneyCta } from "@/components/JourneyCta";
 import { BADGES, PARTNERS } from "@/lib/brand";
 import { PARTNER_COURSES } from "@/lib/catalog";
 import banner from "@/images/banner-hero.jpg";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = {
-  title: { absolute: "PACA — Professional Agile Certification, Africa" },
-  description:
-    "PACA sets benchmark standards for the Agile profession in Africa, certifying practitioners in Agile, Scrum, Kanban and DevOps.",
-};
+export const metadata = pageMeta(
+  "PACA — Professional Agile Certification, Africa",
+  "PACA sets benchmark standards for the Agile profession in Africa, certifying practitioners in Agile, Scrum, Kanban and DevOps.",
+  "/",
+  { absoluteTitle: true },
+);
 
 /** Rendered per request so tier prices always match the database. */
 export const dynamic = "force-dynamic";
@@ -41,7 +43,7 @@ export default async function HomePage() {
         {/* Photo, blended into the brand colours: navy behind the copy, the people clear on the right. */}
         <Image
           src={banner}
-          alt=""
+          alt="Agile professionals collaborating in a team meeting"
           fill
           priority
           sizes="100vw"

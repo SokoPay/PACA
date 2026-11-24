@@ -78,7 +78,7 @@ export default function ExamPage() {
     return (
       <main className="mx-auto max-w-2xl px-5 py-14">
         <section className={`rounded-3xl p-8 text-center shadow-xl ${result.passed ? "paca-gradient text-white" : ""}`} style={result.passed ? {} : { background: "var(--surface)", border: "1px solid var(--border)" }}>
-          {result.passed && badge && <Image src={badge.image} alt="" width={160} height={135} className="mx-auto h-[135px] w-auto rounded-xl bg-white/90 p-2" />}
+          {result.passed && badge && <Image src={badge.image} alt={`${badge.name} badge`} width={160} height={135} className="mx-auto h-[135px] w-auto rounded-xl bg-white/90 p-2" />}
           <h1 className="mt-4 text-3xl font-bold">{result.passed ? "Congratulations — you're certified! 🎉" : "Not this time"}</h1>
           <p className={`mt-2 ${result.passed ? "text-white/90" : ""}`} style={result.passed ? {} : { color: "var(--text-muted)" }}>
             You scored {pct}% ({result.correctCount}/{result.questionCount}). Pass mark {Math.round(result.passMarkBps / 100)}%.
@@ -114,7 +114,7 @@ export default function ExamPage() {
     <main className="mx-auto max-w-3xl px-5 py-14">
       <section className="overflow-hidden rounded-3xl border shadow-sm" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
         <div className="paca-gradient flex flex-col items-center gap-4 px-8 py-10 text-center text-white sm:flex-row sm:text-left">
-          {badge && <Image src={badge.image} alt="" width={130} height={110} className="h-[110px] w-auto rounded-xl bg-white/90 p-2" />}
+          {badge && <Image src={badge.image} alt={`${badge.name} badge`} width={130} height={110} className="h-[110px] w-auto rounded-xl bg-white/90 p-2" />}
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Your main exam · paid members only</p>
             <h1 className="mt-2 text-3xl font-bold">{status?.tierName ? `${status.tierName} certification exam` : "PACA certification exam"}</h1>

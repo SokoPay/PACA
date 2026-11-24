@@ -145,6 +145,7 @@ export default function ApplyPage({ params }: { params: Promise<{ tier: string }
     try {
       await submitApplication(applicationId);
       setSubmitted(true);
+      router.push("/thank-you?for=application");
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);

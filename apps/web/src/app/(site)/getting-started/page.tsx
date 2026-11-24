@@ -2,11 +2,9 @@ import Link from "next/link";
 import { fetchTiers, formatUsd, type TierInfo } from "@/lib/api";
 import { PageHero } from "@/components/PageHero";
 import { JourneyCta } from "@/components/JourneyCta";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = {
-  title: "Getting started with PACA",
-  description: "How to join PACA: application, review, subscription fees and certification.",
-};
+export const metadata = pageMeta("Getting started with PACA", "How to join PACA: application, review, subscription fees and certification.", "/getting-started");
 
 export const dynamic = "force-dynamic";
 

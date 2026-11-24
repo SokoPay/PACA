@@ -6,11 +6,9 @@ import iconRocket from "@/images/icon-growth-rocket.jpeg";
 import iconTrainers from "@/images/icon-experienced-trainers.jpeg";
 import iconCommunity from "@/images/icon-community-network.jpeg";
 import { PageHero } from "@/components/PageHero";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = {
-  title: "What is PACA?",
-  description: "PACA sets benchmark standards for the Agile profession across Africa.",
-};
+export const metadata = pageMeta("What is PACA?", "What PACA is, why Africa needs its own Agile standard, and how membership, certification and the PACA community work.", "/what-is-paca");
 
 const OBJECTIVES = [
   "Set benchmark standards for the Agile profession",
@@ -64,7 +62,7 @@ export default function WhatIsPacaPage() {
               className="flex gap-4 rounded-2xl border p-5 transition hover:-translate-y-0.5 hover:shadow-lg"
               style={{ borderColor: "var(--border)", background: "var(--surface)" }}
             >
-              <Image src={icon} alt="" width={72} height={72} className="h-[72px] w-[72px] shrink-0 rounded-full bg-white object-contain" />
+              <Image src={icon} alt={`${title} icon`} width={72} height={72} className="h-[72px] w-[72px] shrink-0 rounded-full bg-white object-contain" />
               <div>
                 <h3 className="font-semibold">{title}</h3>
                 <p className="mt-1.5 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>

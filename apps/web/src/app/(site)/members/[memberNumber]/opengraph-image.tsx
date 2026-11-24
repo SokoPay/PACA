@@ -16,7 +16,7 @@ export default async function Image({ params }: { params: Promise<{ memberNumber
         <div style={{ display: "flex", flex: 1, alignItems: "center", gap: 56, marginTop: 30 }}>
           {badge && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={badge} width={380} height={321} style={{ borderRadius: 28, background: "white", padding: 12 }} alt="" />
+            <img src={badge} width={380} height={321} style={{ borderRadius: 28, background: "white", padding: 12 }} alt="PACA membership badge" />
           )}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ fontSize: 28, opacity: 0.85 }}>Verified PACA member</div>

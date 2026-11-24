@@ -1,41 +1,13 @@
-"use client";
+import type { Metadata } from "next";
+import { AdminShell } from "./AdminShell";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { restoreSession, type SessionUser } from "@/lib/api";
-import { AdminSessionContext } from "./AdminSessionContext";
-import { AdminSidebar } from "./AdminSidebar";
+/** Staff-only area: titled per section, never indexed. */
+export const metadata: Metadata = {
+  title: { default: "Admin", template: "%s · PACA Admin" },
+  description: "PACA administration.",
+  robots: { index: false, follow: false, nocache: true },
+};
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const [user, setUser] = useState<SessionUser | null>(null);
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    restoreSession().then((session) => {
-      if (!session || session.role === "MEMBER") {
-        router.replace(session ? "/dashboard" : "/login");
-        return;
-      }
-      setUser(session);
-      setChecking(false);
-    });
-  }, [router]);
-
-  if (checking || !user) {
-    return (
-      <main className="flex min-h-screen items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
-        Loading…
-      </main>
-    );
-  }
-
-  return (
-    <AdminSessionContext.Provider value={user}>
-      <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
-        <AdminSidebar user={user} />
-        <div className="min-w-0 flex-1 overflow-y-auto">{children}</div>
-      </div>
-    </AdminSessionContext.Provider>
-  );
+  return <AdminShell>{children}</AdminShell>;
 }

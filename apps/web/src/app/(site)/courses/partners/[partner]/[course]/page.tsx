@@ -6,6 +6,7 @@ import { coursesFor, findCourse, partnerInfo } from "@/lib/catalog";
 import { partnerBrand } from "@/lib/brand";
 import { CourseCard } from "@/components/CourseCard";
 import { MemberOffer } from "@/components/MemberOffer";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,8 @@ type Params = Promise<{ partner: string; course: string }>;
 export async function generateMetadata({ params }: { params: Params }) {
   const { partner, course } = await params;
   const c = findCourse(partner, course);
-  return { title: c ? `${c.title} — ${partnerInfo(partner)?.name}` : "Course" };
+  if (!c) return { title: "Course" };
+  return pageMeta(`${c.title}, ${partnerInfo(partner)?.name ?? ""}`, c.summary, `/courses/partners/${partner}/${course}`);
 }
 
 export default async function PartnerCoursePage({ params }: { params: Params }) {

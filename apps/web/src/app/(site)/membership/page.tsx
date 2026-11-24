@@ -3,11 +3,9 @@ import Image from "next/image";
 import { fetchTiers, formatUsd, type TierInfo } from "@/lib/api";
 import { badgeFor } from "@/lib/brand";
 import { PageHero } from "@/components/PageHero";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = {
-  title: "PACA Membership",
-  description: "Compare PACA Student, Professional, Executive, Fellow and Retired membership.",
-};
+export const metadata = pageMeta("PACA Membership", "Compare PACA Student, Professional, Executive, Fellow and Retired membership: who each is for, prices, benefits and how to apply.", "/membership");
 
 export const dynamic = "force-dynamic";
 
